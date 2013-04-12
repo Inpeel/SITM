@@ -12,8 +12,11 @@ my $err;
 #   Net::Pcap::lookupdev method
 
 my $dev = $ARGV[0];
+my ($net,$mask);
 unless (defined $dev) {
     $dev = Net::Pcap::lookupdev(\$err);
+    pcap_lookupnet($dev,\$net,\$mask,\$err);
+	print("NetMask : $net\n");
     if (defined $err) {
         die 'Unable to determine network device for monitoring - ', $err;
     }

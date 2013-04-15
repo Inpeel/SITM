@@ -2,9 +2,14 @@
 use strict;
 use warnings;
 use Net::Pcap::Easy;
+use Net::MAC;
+use Net::MAC::Vendor;
+use Socket;
 my $SHOW_MAC = 0;
 my ($LOCAL_IP,$LOCAL_MASK);
-    # all arguments to new are optoinal
+
+sub StartCap()
+{
     my $npe = Net::Pcap::Easy->new(
         packets_per_loop => 10,
         bytes_to_capture => 1024,
@@ -17,10 +22,11 @@ my ($LOCAL_IP,$LOCAL_MASK);
             {
                 print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
                  . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
+                print "[TCP INFO] : $ether->{src_mac} -> $ether->{dest_mac}\n" if $SHOW_MAC;
 
-                print "[ARP INFO] : $ether->{src_mac} -> $ether->{dest_mac}\n" if $SHOW_MAC;
+    	
             }
-            if ($ip->{dest_ip} eq "10.8.99.224")
+            if ($ip->{dest_ip} eq "10.8.99.224x" )
             {
                 print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
                  . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
@@ -43,6 +49,44 @@ my ($LOCAL_IP,$LOCAL_MASK);
             }
         }
     );
-	print "Network IP : " .$npe->network ."\n";
-	print "Netmask : " .$npe->netmask ."\n";
+    print "Network IP : " .$npe->network ."\n";
+    print "Netmask : " .$npe->netmask ."\n";
+    my $block = GetLocalNetInfo($npe->network, $npe->netmask);
+
+    print "la taille du réseau est:".$block->size()."\n";
+    print "premiere adresse :".$block->first()."\n";
+    print "derniere adresse :".$block->last()."\n";
+
     1 while $npe->loop;
+}
+
+sub ResolveHostName {
+    return gethostbyaddr(inet_aton($_[0]), AF_INET);
+}
+
+sub LookupMacVendor {
+    my $cmac = Net::MAC->new('mac' => $_[0])->convert(
+            'base' => 16,
+            'bit_group' => 8,
+            'delimiter' => ':'
+    ); 
+    my $vendor = Net::MAC::Vendor::lookup( $cmac );;
+    if (@$vendor[0])
+    {
+        return @$vendor[0];
+    }
+    else
+    {
+        return "Unknown"
+    }
+}
+
+sub GetLocalNetInfo {
+    my $block = new Net::Netmask($_[0],$_[1]);
+    return $block;
+}
+
+
+
+
+StartCap();

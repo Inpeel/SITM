@@ -1,6 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 use warnings;
+use Net::RawIP;
 use Net::Pcap::Easy;
 use Net::MAC;
 use Net::MAC::Vendor;
@@ -56,7 +57,7 @@ sub StartCap()
     print "la taille du réseau est:".$block->size()."\n";
     print "premiere adresse :".$block->first()."\n";
     print "derniere adresse :".$block->last()."\n";
-
+    MapNetwork($block->first(),$block->last());
     1 while $npe->loop;
 }
 
@@ -86,7 +87,48 @@ sub GetLocalNetInfo {
     return $block;
 }
 
+sub MapNetwork {
+    my $currentip; 
+    my ($a,$b,$c,$d) = split(/\./, $_[0]);
 
+    do
+    {
+        $d++;
+        $currentip = "$a.$b.$c.$d";
+        print "Probing : $a.$b.$c.$d\n";
+        my $n = Net::RawIP->new({
+                        ip  => {
+                                saddr => '10.8.99.224',
+                                daddr => $currentip,
+                               },
+                      },
+                      tcp => {
+                                source => 31337,
+                                dest   => 54321,
+                                psh    => 1,
+                                syn    => 0,
+                              });;
+        $n->send;
+        $n->ethnew("wlan0");
+        if ($d == 255)
+        {
+            $c++;
+            $d = 0;
+        }
+        if ($c == 255)
+        {
+            $b++;
+            $c =0;
+        }
+        if ($b == 255)
+        {
+            $a++;
+            $b = 0;
+        }
+
+    } while ($currentip ne $_[1]);
+
+}
 
 
 StartCap();

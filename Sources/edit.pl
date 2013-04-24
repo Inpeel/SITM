@@ -44,21 +44,20 @@ my $menu = $cui->add(
 
 
 # Add a window
-my $win1 = $cui->add(
-	'win1', 'Window',
+my $packetlist = $cui->add(
+	'packetlist', 'Window',
 	-border => 1,
     -title => "Packets",
 	-y      => 15,
 	-bfg    => 'red',
 );
 
-my $listbox = $win1->add(
+my $listbox = $packetlist->add(
     'mylistbox', 'Listbox',
     -values    => [1, 2, 3],
     -labels    => { 1 => 'One', 
                     2 => 'Two', 
-                    3 => 'Three' },
-    -radio     => 1,
+                    3 => 'Three' }
 );
 
 
@@ -80,10 +79,6 @@ sub exit_dialog {
 	);
 
 	exit(0) if $return;
-}
-
-sub PrintSomeShit {
-	print("HELLO WORLD !");
 }
 
 
@@ -190,7 +185,7 @@ sub SendSYNProbe {
                       },
                       tcp => {
                                 source => 31337,
-                                dest   => 54321,
+                                dest   => int(rand(65500))+1,
                                 psh    => 1,
                                 syn    => 0,
                               });;

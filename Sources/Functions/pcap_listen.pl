@@ -5,9 +5,12 @@ use Net::RawIP;
 use Net::Pcap::Easy;
 use Net::MAC;
 use Net::MAC::Vendor;
+use Getopt::Long;
 use Socket;
+
 my $SHOW_MAC = 0;
-my ($LOCAL_IP,$LOCAL_MASK);
+my $listen_mode;
+GetOptions ("listen" => \$listen_mode);
 
 sub StartCap()
 {
@@ -19,7 +22,7 @@ sub StartCap()
 
         tcp_callback => sub {
             my ($npe, $ether, $ip, $tcp, $header ) = @_;
-            if ($ip->{src_ip} ne "10.8.99.224" and $ip->{dest_ip} ne "10.8.99.224")
+            if ($ip->{src_ip} ne "10.8.99.230" and $ip->{dest_ip} ne "10.8.99.230")
             {
                 print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
                  . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
@@ -27,7 +30,7 @@ sub StartCap()
 
     	
             }
-            if ($ip->{dest_ip} eq "10.8.99.224x" )
+            if ($ip->{dest_ip} eq "10.8.99.230x" )
             {
                 print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
                  . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
@@ -60,6 +63,10 @@ sub StartCap()
     print "la taille du réseau est:".$block->size()."\n";
     print "premiere adresse :".$block->first()."\n";
     print "derniere adresse :".$block->last()."\n";
+    if (!$listen_mode)
+    {
+        MapNetwork($block->first(),$block->last());
+    }
     1 while $npe->loop;
 }
 
@@ -108,7 +115,7 @@ sub MapNetwork {
         print "Probing : $a.$b.$c.$d\n";
         my $n = Net::RawIP->new({
                         ip  => {
-                                saddr => '10.8.99.224',
+                                saddr => '10.8.99.230',
                                 daddr => $currentip,
                                },
                       },

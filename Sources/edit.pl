@@ -9,8 +9,7 @@ use Net::MAC;
 use Net::MAC::Vendor;
 use Getopt::Long;
 use Socket;
-
-my $SHOW_MAC = 0;
+my $VERSION = "1.0 Alpha";
 
 my $cui = new Curses::UI( -color_support => 1 );
 
@@ -26,11 +25,15 @@ my @menu = (
 	},
 	{
 		-label   => 'Attaques',
-		-submenu => [ { -label => 'ARP Spoofing', -value => \&exit_dialog }, { -label => 'DHCP Spoofing', -value => \&exit_dialog } ]
+		-submenu => [ { -label => 'ARP Spoofing (REQUEST)', -value => \&exit_dialog }, { -label => 'ARP Spoofing (REPLY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (GATEWAY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (DNS)', -value => \&exit_dialog },{ -label => 'MAC Address Stealing', -value => \&exit_dialog } ]
 	},
     {
         -label   => 'Logs',
         -submenu => [ { -label => 'HTTP Auth', -value => \&exit_dialog }, { -label => 'FTP Auth', -value => \&exit_dialog } ]
+    },
+    {
+        -label   => 'Security',
+        -submenu => [ { -label => 'Generate Random MAC    ^R', -value => \&exit_dialog }, { -label => 'Set MAC Address        ^M', -value => \&exit_dialog } ]
     },
 );
 
@@ -47,7 +50,7 @@ my $menu = $cui->add(
 my $packetlist = $cui->add(
 	'packetlist', 'Window',
 	-border => 1,
-    -title => "Packets",
+    -title => "Logs",
 	-y      => 15,
 	-bfg    => 'red',
 );
@@ -55,7 +58,7 @@ my $packetlist = $cui->add(
 my $listbox = $packetlist->add(
     'mylistbox', 'Listbox',
     -values    => [1, 2, 3],
-    -labels    => { 1 => 'One', 
+    -labels    => { 1 => 'SITM ' .$VERSION. ' Started - '.localtime, 
                     2 => 'Two', 
                     3 => 'Three' }
 );
@@ -81,7 +84,7 @@ sub exit_dialog {
 	exit(0) if $return;
 }
 
-
+# LibPCAP Listening
 sub StartCap
 {
     my $npe = Net::Pcap::Easy->new(
@@ -96,7 +99,7 @@ sub StartCap
             {
                 print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
                  . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
-                print "[TCP INFO] : $ether->{src_mac} -> $ether->{dest_mac}\n" if $SHOW_MAC;
+                print "[TCP INFO] : $ether->{src_mac} -> $ether->{dest_mac}\n";
 
     	
             }
@@ -139,7 +142,6 @@ sub StartCap
 
 sub DrawNotif {
     $cui->dialog($_[0]);
-    sleep 3;
 }
 
 sub ResolveHostName {
@@ -184,8 +186,8 @@ sub SendSYNProbe {
                                },
                       },
                       tcp => {
-                                source => 31337,
-                                dest   => int(rand(65500))+1,
+                                source => int(rand(65500))+1, #Random Source Port
+                                dest   => int(rand(65500))+1, #Random Destination Port
                                 psh    => 1,
                                 syn    => 0,
                               });;

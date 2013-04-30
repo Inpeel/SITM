@@ -5,6 +5,7 @@ use Net::RawIP;
 use Net::Pcap::Easy;
 use Net::MAC;
 use Net::MAC::Vendor;
+use Net::DHCP::Packet;
 use Getopt::Long;
 use Socket;
 
@@ -36,12 +37,27 @@ sub StartCap()
                  . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
                 print("[FLAG] : $tcp->{flags}\n");
             }
+            if ($tcp->{dest_port} == 80 || $tcp->{src_port} == 80){
+                print "[SITM] Got HTTP Request !\n"
+                    print $tcp->{data};
+            }
+
         },
 
         icmp_callback => sub {
             my ($npe, $ether, $ip, $icmp, $header ) = @_;
             print "[SITM] ICMP: $ether->{src_mac}:$ip->{src_ip}"
              . " -> $ether->{dest_mac}:$ip->{dest_ip}\n";
+        },
+
+        udp_callback => sub {
+            my ($npe, $ether, $ip, $udp, $header ) = @_;
+            if ($udp->{dest_port} == 67)
+            {
+                print "[SITM] Got DHCP Request !\n";
+                my $packet = Net::DHCP::Packet->new($udp->{data});
+                print STDERR $packet->toString();
+            }
         },
 
         arp_callback => sub {

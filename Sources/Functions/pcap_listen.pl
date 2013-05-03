@@ -38,7 +38,7 @@ sub StartCap()
                 print("[FLAG] : $tcp->{flags}\n");
             }
             if ($tcp->{dest_port} == 80 || $tcp->{src_port} == 80){
-                print "[SITM] Got HTTP Request !\n"
+                print "[SITM] Got HTTP Request !\n";
                     print $tcp->{data};
             }
 

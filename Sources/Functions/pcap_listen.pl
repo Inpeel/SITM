@@ -64,9 +64,9 @@ sub StartCap()
             my ($npe, $ether, $arp, $header) = @_;
             if ($arp->{tha} ne "000000000000")
             {
-		my $ipsrc = join ".", map { hex }($arp->{spa} =~ /([[:xdigit:]]{2})/g);
-		my $macsrc = join ":", ($arp->{sha} =~ /([[:xdigit:]]{2})/g);
-		my $hostname = ResolveHostName($ipsrc);
+        		my $ipsrc = IPFormat($arp->{spa});
+        		my $macsrc = MacFormat($arp->{sha});
+        		my $hostname = ResolveHostName($ipsrc);
                 print("[SITM] ARP Reply : hw addr=$macsrc [ ".LookupMacVendor($macsrc)." ], " .
                 "resolved IP Address : $ipsrc [ ".$hostname." ]\n");
             }
@@ -85,6 +85,17 @@ sub StartCap()
     }
     1 while $npe->loop;
 }
+
+sub IPFormat
+{
+    return join ".", map { hex }($_[0] =~ /([[:xdigit:]]{2})/g)
+}
+
+sub MacFormat
+{
+    return join ":", ($_[0] =~ /([[:xdigit:]]{2})/g);
+}
+
 
 sub ResolveHostName {
     my $hostname = gethostbyaddr(inet_aton($_[0]), AF_INET);

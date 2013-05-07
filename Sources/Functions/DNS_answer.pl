@@ -9,10 +9,9 @@ sub reply_handler {
 	my ($rcode, @ans, @auth, @add);
            
 	print "Received query from $peerhost to ". $conn->{sockhost}. "\n";
-	$query->print;
-                 
+
 	if ($qtype eq "A") {
-		my ($ttl, $rdata) = (3600, "127.0.0.1");
+		my ($ttl, $rdata) = (3600, "192.168.0.2");
 		my $rr = new Net::DNS::RR("$qname $ttl $qclass $qtype $rdata");
 		push @ans, $rr;
 		$rcode = "NOERROR";
@@ -23,7 +22,7 @@ sub reply_handler {
 
 	}else{
 		$rcode = "NXDOMAIN";
-	}                                                                                                            }
+	}                                                                                                            
 	# mark the answer as authoritive (by setting the 'aa' flag
 	return ($rcode, \@ans, \@auth, \@add, { aa => 1 });
 }

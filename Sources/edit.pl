@@ -84,116 +84,19 @@ sub exit_dialog {
 	exit(0) if $return;
 }
 
-# LibPCAP Listening
-sub StartCap
-{
-    my $npe = Net::Pcap::Easy->new(
-        packets_per_loop => 10,
-        bytes_to_capture => 1024,
-        timeout_in_ms    => 0, # 0ms means forever
-        promiscuous      => 0, # true or false
-
-        tcp_callback => sub {
-            my ($npe, $ether, $ip, $tcp, $header ) = @_;
-            if ($ip->{src_ip} ne "10.8.99.230" and $ip->{dest_ip} ne "10.8.99.230")
-            {
-                print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
-                 . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
-                print "[TCP INFO] : $ether->{src_mac} -> $ether->{dest_mac}\n";
-
-    	
-            }
-            if ($ip->{dest_ip} eq "10.8.99.230x" )
-            {
-                print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
-                 . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
-                print("[FLAG] : $tcp->{flags}\n");
-            }
-        },
-
-        icmp_callback => sub {
-            my ($npe, $ether, $ip, $icmp, $header ) = @_;
-            print "[SITM] ICMP: $ether->{src_mac}:$ip->{src_ip}"
-             . " -> $ether->{dest_mac}:$ip->{dest_ip}\n";
-        },
-
-        arp_callback => sub {
-            my ($npe, $ether, $arp, $header) = @_;
-            if ($arp->{tha} ne "000000000000")
-            {
-		my $ipsrc = join ".", map { hex }($arp->{spa} =~ /([[:xdigit:]]{2})/g);
-		my $macsrc = join ":", ($arp->{sha} =~ /([[:xdigit:]]{2})/g);
-		my $hostname = ResolveHostName($ipsrc);
-                print("[SITM] ARP Reply : hw addr=$macsrc [ ".LookupMacVendor($macsrc)." ], " .
-                "resolved IP Address : $ipsrc [ ".$hostname." ]\n");
-            }
-        }
-    );
-    print "Network IP : " .$npe->network ."\n";
-    print "Netmask : " .$npe->netmask ."\n";
-    my $block = GetLocalNetInfo($npe->network, $npe->netmask);
-
-    print "la taille du réseau est:".$block->size()."\n";
-    print "premiere adresse :".$block->first()."\n";
-    print "derniere adresse :".$block->last()."\n";
-    MapNetwork($block->first(),$block->last());
-    1 while $npe->loop;
-}
-
 sub DrawNotif {
     $cui->dialog($_[0]);
 }
 
-sub ResolveHostName {
-    my $hostname = gethostbyaddr(inet_aton($_[0]), AF_INET);
-    if ($hostname)
-    {
-		return $hostname;
-    }
-    else
-    {
-		return "Unknown";
-    }
+sub SendARPProbe {
+    Net::ARP::send_packet('wlan0',                 # Device
+                '10.8.99.230',          # Source IP
+                $_[1],          # Destination IP
+                '94:db:c9:47:dc:6d',  # Source MAC
+                'FF:FF:FF:FF:FF:FF',  # Destinaton MAC
+                'request');             # ARP operation
 }
 
-sub LookupMacVendor {
-    my $cmac = Net::MAC->new('mac' => $_[0])->convert(
-            'base' => 16,
-            'bit_group' => 8,
-            'delimiter' => ':'
-    ); 
-    my $vendor = Net::MAC::Vendor::lookup( $cmac );;
-    if (@$vendor[0])
-    {
-        return @$vendor[0];
-    }
-    else
-    {
-        return "Unknown"
-    }
-}
-
-sub GetLocalNetInfo {
-    my $block = new Net::Netmask($_[0],$_[1]);
-    return $block;
-}
-
-sub SendSYNProbe {
-	my $n = Net::RawIP->new({
-                        ip  => {
-                                saddr => '10.8.99.230',
-                                daddr => $_[0],
-                               },
-                      },
-                      tcp => {
-                                source => int(rand(65500))+1, #Random Source Port
-                                dest   => int(rand(65500))+1, #Random Destination Port
-                                psh    => 1,
-                                syn    => 0,
-                              });;
-        $n->send;
-        $n->ethnew("wlan0");
-}
 
 sub MapNetwork {
     my $currentip; 
@@ -213,7 +116,7 @@ sub MapNetwork {
     	$i++;
         $d++;
         $currentip = "$a.$b.$c.$d";
-        SendSYNProbe($currentip);
+        SendARPProbe($currentip);
 
         $cui->setprogress($i, $msg . $i . " / 3800");
 

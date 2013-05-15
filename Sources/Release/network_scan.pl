@@ -1,4 +1,5 @@
 
+
 sub SendARPProbe {
     Net::ARP::send_packet('wlan0',                 # Device
                 '10.8.99.230',          # Source IP
@@ -13,11 +14,11 @@ sub Start_NetworkScanner {
     my $currentip; 
     my $i;
     my ($a,$b,$c,$d) = split(/\./, $_[1]);
-    my $msg = "Counting from 0 to 4096...\n";
+    my $msg = "Scan du réseau...\n";
     $_[0]->progress(
         -min => 0,
         -max => 3800,
-        -title => "Sending SYN Probes",
+        -title => "Sending ARP Probes",
         -message => $msg,
     );
 
@@ -53,6 +54,9 @@ sub Start_NetworkScanner {
     $_[0]->setprogress(undef, "Finished counting!");
     sleep 3;
     $_[0]->noprogress;
+    my %hosts = GetResolvedHosts();
+    my $count = scalar(keys %hosts);
+    AddLogEntry("$count resolved hosts !");
 }
 
 return 1;

@@ -1,7 +1,36 @@
+my $DataOnPipe : shared = 0;
+my %ResolvedHosts : shared = ();
 
-sub Start_NetworkListener
+sub Start_NetworkListener{
+    my $NetworkListener = threads->new(\&Start_NetworkListener_Thread);
+    $NetworkListener->detach();
+}
+
+sub AddDataToPipe{
+    open (FH,">sitm_pipe.tmp") or die print STDERR "FILE ERROR !";
+    print FH $_[0];
+    close FH;
+    $DataOnPipe = 1;
+}
+
+sub GetPipeStatus{
+    return $DataOnPipe;
+}
+
+sub SetPipeStatus{
+    $DataOnPipe = 0;
+}
+
+sub AddResolvedHost{
+    $ResolvedHosts{$_[0]} = $_[1];
+}
+
+sub GetResolvedHosts{
+    return %ResolvedHosts;
+}
+
+sub Start_NetworkListener_Thread
 {
-
         my $npe = Net::Pcap::Easy->new(
             dev              => "wlan0",
             timeout_in_ms    => 0, # 0ms means forever
@@ -11,28 +40,28 @@ sub Start_NetworkListener
                 my ($npe, $ether, $ip, $tcp, $header ) = @_;
                 if ($ip->{src_ip} ne "10.8.99.230" and $ip->{dest_ip} ne "10.8.99.230")
                 {
-                    AddLogEntry("[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
+                    AddDataToPipe("TCP : $ip->{src_ip}:$tcp->{src_port}"
                      . " -> $ip->{dest_ip}:$tcp->{dest_port}\n");
-                    AddLogEntry("[TCP INFO] : $ether->{src_mac} -> $ether->{dest_mac}\n") if $SHOW_MAC;
+                    AddDataToPipe("[TCP INFO] : $ether->{src_mac} -> $ether->{dest_mac}\n") if $SHOW_MAC;
 
         	
                 }
                 if ($ip->{dest_ip} eq "10.8.99.230x" )
                 {
-                    AddLogEntry("[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
+                    AddDataToPipe("TCP : $ip->{src_ip}:$tcp->{src_port}"
                      . " -> $ip->{dest_ip}:$tcp->{dest_port}\n");
-                    AddLogEntry("[FLAG] : $tcp->{flags}\n");
+                    AddDataToPipe("[FLAG] : $tcp->{flags}\n");
                 }
                 #if ($tcp->{dest_port} == 80 || $tcp->{src_port} == 80){
-                #    AddLogEntry "[SITM] Got HTTP Request !\n";
-                #        AddLogEntry $tcp->{data};
+                #    AddDataToPipe "[SITM] Got HTTP Request !\n";
+                #        AddDataToPipe $tcp->{data};
                 #}
 
             },
 
             icmp_callback => sub {
                 my ($npe, $ether, $ip, $icmp, $header ) = @_;
-                AddLogEntry("[SITM] ICMP: $ether->{src_mac}:$ip->{src_ip}"
+                AddDataToPipe("ICMP: $ether->{src_mac}:$ip->{src_ip}"
                  . " -> $ether->{dest_mac}:$ip->{dest_ip}\n");
             },
 
@@ -40,17 +69,17 @@ sub Start_NetworkListener
                 my ($npe, $ether, $ip, $udp, $header ) = @_;
                 if ($udp->{dest_port} == 67)
                 {
-                    AddLogEntry("[SITM] Got DHCP Request from $ether->{src_mac}!\n");
+                    AddDataToPipe("Got DHCP Request from $ether->{src_mac}!\n");
                     my $packet = Net::DHCP::Packet->new($udp->{data});
-                    AddLogEntry("DHCP Message Type : ".$packet->getOptionValue(DHO_DHCP_MESSAGE_TYPE())."\n");
+                    AddDataToPipe("DHCP Message Type : ".$packet->getOptionValue(DHO_DHCP_MESSAGE_TYPE())."\n");
                     if ($packet->getOptionValue(DHO_DHCP_MESSAGE_TYPE()) == 1)
                     {
-                        AddLogEntry("Got DHCP Discover !\n");
+                        AddDataToPipe("Got DHCP Discover !\n");
                         #ForgeDHCPServer($packet->xid(),"192.168.0.2","192.168.0.1",DHCPOFFER(),$ether->{src_mac});
                     }
                     elsif ($packet->getOptionValue(DHO_DHCP_MESSAGE_TYPE()) == 3)
                     {
-                        AddLogEntry("Got DHCP Request !\n");
+                        AddDataToPipe("Got DHCP Request !\n");
                         #ForgeDHCPServer($packet->xid(),"192.168.0.2","192.168.0.1",DHCPACK(),$ether->{src_mac});
                     }
                 }
@@ -63,17 +92,18 @@ sub Start_NetworkListener
             		my $ipsrc = IPFormat($arp->{spa});
             		my $macsrc = MacFormat($arp->{sha});
             		my $hostname = ResolveHostName($ipsrc);
-                    AddLogEntry("[SITM] ARP Reply : hw addr=$macsrc [ ".LookupMacVendor($macsrc)." ], " .
+                    AddDataToPipe("ARP Reply : hw addr=$macsrc [ ".LookupMacVendor($macsrc)." ], " .
                     "resolved IP Address : $ipsrc [ ".$hostname." ]\n");
+                    AddResolvedHost($ipsrc,$macsrc);
                 }
                 
             }
         );
-        AddLogEntry("Network IP : " .$npe->network ."\n");
-        AddLogEntry("Netmask : " .$npe->netmask ."\n");
+        AddDataToPipe("Network IP : " .$npe->network ."\n");
+        AddDataToPipe("Netmask : " .$npe->netmask ."\n");
 
         my $block = GetLocalNetInfo($npe->network, $npe->netmask);
-        AddLogEntry("SITM Network Listener [".$block->first()."][".$block->last()."] started.");
+        AddDataToPipe("SITM Network Listener [".$block->first()."][".$block->last()."] started.");
 
         1 while $npe->loop;
     

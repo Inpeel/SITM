@@ -15,6 +15,10 @@ sub CreateLogDerma{
 
 }
 
+sub ShowLogDerma{
+	$listbox->focus();
+}
+
 sub GetLogDerma {
 	return $listbox;
 }

@@ -33,12 +33,12 @@ sub StartCap()
                 if ($packet->getOptionValue(DHO_DHCP_MESSAGE_TYPE()) == 1)
                 {
                     print "Got DHCP Discover !\n";
-                    ForgeDHCPServer($packet->xid(),"192.168.0.2","192.168.0.1",DHCPOFFER(),$ether->{src_mac});
+                    ForgeDHCPServer($packet->xid(),"192.168.0.2","192.168.0.20",DHCPOFFER(),$ether->{src_mac});
                 }
                 elsif ($packet->getOptionValue(DHO_DHCP_MESSAGE_TYPE()) == 3)
                 {
                     print "Got DHCP Request !\n";
-                    ForgeDHCPServer($packet->xid(),"192.168.0.2","192.168.0.1",DHCPACK(),$ether->{src_mac});
+                    ForgeDHCPServer($packet->xid(),"192.168.0.2","192.168.0.20",DHCPACK(),$ether->{src_mac});
                 }
             }
         },
@@ -87,7 +87,7 @@ sub SendDHCPResponse
 {
     my $packet = Net::RawIP->new({
                           ip => {
-                                saddr => '192.168.0.1',
+                                saddr => '192.168.0.20',
                                 daddr => $_[0],
                                 },
 

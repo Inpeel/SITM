@@ -2,22 +2,22 @@
 
 sub SendARPProbe {
     Net::ARP::send_packet('wlan0',                 # Device
-                '10.8.99.230',          # Source IP
+                '192.168.0.26',          # Source IP
                 $_[0],          # Destination IP
                 '94:db:c9:47:dc:6d',  # Source MAC
                 'FF:FF:FF:FF:FF:FF',  # Destinaton MAC
                 'request');             # ARP operation
 }
 
-
 sub Start_NetworkScanner {
     my $currentip; 
     my $i;
     my ($a,$b,$c,$d) = split(/\./, $_[1]);
+    my $IPCount = $_[3] - 2; #Don't scan network & broadcast addresses.
     my $msg = "Scan du réseau...\n";
     $_[0]->progress(
         -min => 0,
-        -max => 3800,
+        -max => $IPCount,
         -title => "Sending ARP Probes",
         -message => $msg,
     );
@@ -28,9 +28,12 @@ sub Start_NetworkScanner {
         $i++;
         $d++;
         $currentip = "$a.$b.$c.$d";
-        SendARPProbe($currentip);
+        if ($currentip ne $_[2])
+        {
+            SendARPProbe($currentip);
+        }
 
-        $_[0]->setprogress($i, $msg . $i . " / 3800");
+        $_[0]->setprogress($i, $msg . $i . " / $IPCount");
 
         if ($d == 255)
         {
@@ -51,7 +54,7 @@ sub Start_NetworkScanner {
     } while ($currentip ne $_[2]);
 
 
-    $_[0]->setprogress(undef, "Finished counting!");
+    $_[0]->setprogress(undef, "Scan terminated - Waiting for ARP Replies...");
     sleep 3;
     $_[0]->noprogress;
     my %hosts = GetResolvedHosts();

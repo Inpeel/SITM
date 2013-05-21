@@ -11,6 +11,7 @@ use Net::MAC::Vendor;
 use Net::ARP;
 use Net::DHCP::Packet;
 use Net::DHCP::Constants;
+use IO::Interface::Simple;
 use threads;
 use threads::shared;
 use Time::HiRes;
@@ -35,6 +36,7 @@ require "network_scan.pl";
 require "network_listener.pl";
 require "Modules/mac_generator.pl";
 require "Modules/arp_watcher.pl";
+require "Attacks/arp_query.pl";
 
 my @menu = (
     {
@@ -59,7 +61,7 @@ my @menu = (
     },
     {
         -label   => 'Attaques',
-        -submenu => [ { -label => 'ARP Spoofing (REQUEST)', -value => \&exit_dialog }, { -label => 'ARP Spoofing (REPLY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (GATEWAY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (DNS)', -value => \&exit_dialog },{ -label => 'MAC Address Stealing', -value => \&exit_dialog } ]
+        -submenu => [ { -label => 'ARP Spoofing (REQUEST)', -value => sub { ARPQuery_Attack_Start(); } }, { -label => 'ARP Spoofing (REPLY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (GATEWAY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (DNS)', -value => \&exit_dialog },{ -label => 'MAC Address Stealing', -value => \&exit_dialog } ]
     },
     {
         -label   => 'Logs',

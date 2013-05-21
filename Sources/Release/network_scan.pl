@@ -9,6 +9,11 @@ sub SendARPProbe {
                 'request');             # ARP operation
 }
 
+sub GetLocalMac {
+     my $if1   = IO::Interface::Simple->new(GetSelectedInterface());
+     return $if1->hwaddr;
+}
+
 sub Start_NetworkScanner {
     my $currentip; 
     my $i;

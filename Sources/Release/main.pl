@@ -11,12 +11,17 @@ use Net::MAC::Vendor;
 use Net::ARP;
 use Net::DHCP::Packet;
 use Net::DHCP::Constants;
+use Net::RTP::Packet;
+use Net::SIP;
+use Net::SIP::SDP;
+use Net::SIP::Packet;
 use IO::Interface::Simple;
 use threads;
 use threads::shared;
 use Time::HiRes;
 use Getopt::Long;
 use Socket;
+use POSIX qw(strftime);
 my $release = "1.0B";
 my $license = "SITM version $release, Copyright (C) 2013 IN'TECH INFO
 SITM comes with ABSOLUTELY NO WARRANTY
@@ -36,12 +41,13 @@ require "network_scan.pl";
 require "network_listener.pl";
 require "Modules/mac_generator.pl";
 require "Modules/arp_watcher.pl";
+require "Servers/dhcpd.pl";
 require "Attacks/arp_query.pl";
 
 my @menu = (
     {
         -label   => 'SITM',
-        -submenu => [ { -label => 'Start Sniffing    ^S', -value => sub {InterfacePopup($cui);} }, { -label => 'Show Logs         ^L', -value => sub {ShowLogDerma();} }, { -label => 'Credits           ^C', -value => sub {Credits();} }, { -label => 'Exit              ^Q', -value => \&exit_dialog } ]
+        -submenu => [ { -label => 'Start Sniffing    ^S', -value => sub {InterfacePopup($cui);} }, { -label => 'Stop Sniffing', -value => sub {Stop_NetworkListener();} }, { -label => 'Show Logs         ^L', -value => sub {ShowLogDerma();} }, { -label => 'Credits           ^C', -value => sub {Credits();} }, { -label => 'Exit              ^Q', -value => \&exit_dialog } ]
     },
     {
         -label   => 'Scans',
@@ -61,7 +67,7 @@ my @menu = (
     },
     {
         -label   => 'Attaques',
-        -submenu => [ { -label => 'ARP Spoofing (REQUEST)', -value => sub { ARPQuery_Attack_Start(); } }, { -label => 'ARP Spoofing (REPLY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (GATEWAY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (DNS)', -value => \&exit_dialog },{ -label => 'MAC Address Stealing', -value => \&exit_dialog } ]
+        -submenu => [ { -label => 'ARP Spoofing (REQUEST)', -value => sub { ARPQuery_Attack_Start(); } }, { -label => 'ARP Spoofing (REPLY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (GATEWAY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (DNS)', -value => \&exit_dialog } ]
     },
     {
         -label   => 'Logs',
@@ -91,9 +97,6 @@ $cui->mainloop();
 sub UpdateLog {
     if (GetPipeStatus())
     {
-        print STDERR "PIPE REPONSE !\n";
-        #Lire le PIPE !
-
         foreach my $log (GetLog())
         {
             print STDERR $log;
@@ -104,10 +107,6 @@ sub UpdateLog {
         ClearPipe();
         #unlink "sitm_pipe.tmp";
         #$DataOnPipe = 0;
-    }
-    else
-    {
-        print STDERR "No pipe\n";
     }
 }
 
@@ -125,9 +124,15 @@ sub exit_dialog {
         -title   => "Fermer SITM",
         -buttons => [ 'yes', 'no' ],
     );
-
-    exit(0) if $return;
+    if ($return){
+        system("echo 0 > /proc/sys/net/ipv4/ip_forward");
+        foreach my $thr (threads->list()) {
+            $thr->exit() if $thr->can('exit'); 
+        }
+        exit(0);
+    }
 }
+
 
 sub DrawNotif {
     $cui->dialog($_[0]);

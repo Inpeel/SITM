@@ -23,7 +23,7 @@ sub CheckARPTable {
 			           -title   => 'SITM ARP Watcher',
 			    );
 			    if ($arpalertdialog){
-			    	system("arp -s $router_ip $router_mac");
+			    	system("arp -s $router_ip $router_mac > /dev/null");
 			    }
 				$noblock = 0;
 				

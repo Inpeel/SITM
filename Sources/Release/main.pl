@@ -15,6 +15,9 @@ use Net::RTP::Packet;
 use Net::SIP;
 use Net::SIP::SDP;
 use Net::SIP::Packet;
+use IO::Socket;
+use IO::Select;
+use IO::Socket::SSL;
 use IO::Interface::Simple;
 use threads;
 use threads::shared;
@@ -42,6 +45,7 @@ require "network_listener.pl";
 require "Modules/mac_generator.pl";
 require "Modules/arp_watcher.pl";
 require "Servers/dhcpd.pl";
+require "Servers/https.pl";
 require "Attacks/arp_query.pl";
 
 my @menu = (
@@ -67,11 +71,11 @@ my @menu = (
     },
     {
         -label   => 'Attaques',
-        -submenu => [ { -label => 'ARP Spoofing (REQUEST)', -value => sub { ARPQuery_Attack_Start(); } }, { -label => 'ARP Spoofing (REPLY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (GATEWAY)', -value => \&exit_dialog },{ -label => 'DHCP Spoofing (DNS)', -value => \&exit_dialog } ]
+        -submenu => [ { -label => 'ARP Spoofing Attack', -value => sub { ARPQuery_Attack_Start(); } }, ]
     },
     {
         -label   => 'Logs',
-        -submenu => [ { -label => 'HTTP Auth', -value => \&exit_dialog }, { -label => 'FTP Auth', -value => \&exit_dialog } ]
+        -submenu => [ { -label => 'Passwords', -value => \&exit_dialog }, ]
     },
     {
         -label   => 'Security',
@@ -102,7 +106,7 @@ sub UpdateLog {
             print STDERR $log;
             AddLogEntry($log);
         }
-       
+        GoToLast();
         SetPipeStatus();
         ClearPipe();
         #unlink "sitm_pipe.tmp";
@@ -127,7 +131,7 @@ sub exit_dialog {
     if ($return){
         system("echo 0 > /proc/sys/net/ipv4/ip_forward");
         foreach my $thr (threads->list()) {
-            $thr->exit() if $thr->can('exit'); 
+            $thr->exit('KILL') if $thr->can('exit'); 
         }
         exit(0);
     }

@@ -31,4 +31,8 @@ sub AddLogEntry{
 	print STDERR $_[0]."\n";
 }
 
+sub GoToLast{
+	$listbox->option_last();
+}
+
 return 1;

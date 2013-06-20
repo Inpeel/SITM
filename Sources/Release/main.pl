@@ -27,7 +27,7 @@ use Socket;
 use POSIX qw(strftime);
 
 my $bgcolor = "black";
-my $menucolor = "cyan";
+my $menucolor = "magenta";
 my $fgcolor = "white";
 my $windowcolor = "blue";
 

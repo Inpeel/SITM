@@ -16,7 +16,7 @@ my @rtpport;
 
 Net::MAC::Vendor::load_cache("Mac_Cache.txt");
 
-open(LOGFILE,">>Capture.log");
+open(LOGFILE,">>","Capture.log");
 
 sub Start_NetworkListener{
     system("echo 1 > /proc/sys/net/ipv4/ip_forward");

@@ -99,12 +99,9 @@ sub decode_content{
 
 sub replace_https{
 	my ($tmp, $response) = @_;
-	open (MODIFIED, ">>modified.html");
 	if(${$tmp->content_ref} =~ /(((https:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-]*)?\??(?:[\-\+=&;%@\.\w]*)#?(?:[\.\!\/\\\w]*))?)/g){
-		print MODIFIED "$&\n";
 		${$tmp->content_ref} =~ s/https/http/g;
 	}
-	close MODIFIED;
 	return $tmp;
 }
 

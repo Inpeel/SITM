@@ -1,8 +1,8 @@
+my $im : shared = 0;
+my $state : shared = 0;
 my $interface;
 my $firstip;
 my $lastip;
-my $im : shared = 0;
-my $state : shared = 0;
 sub SendARPProbe {
     Net::ARP::send_packet($interface,                 # Device
                 $_[1],          # Source IP

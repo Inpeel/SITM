@@ -6,7 +6,7 @@ sub CreateLogDerma{
 	    -border => 1,
 	    -title => "Logs",
 	    -y      => 2,
-	    -bfg    => 'red',
+	    -bfg    => GetWindowColor(),
 	);
 	$listbox = $packetlist->add(
 	    'logbox', 'Listbox',

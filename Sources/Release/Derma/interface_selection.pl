@@ -49,7 +49,7 @@ sub InterfacePopup{
   	    -border => 1,
   	    -title => "Selection de l'interface",
   	    -y      => 2,
-  	    -bfg    => 'red',
+  	    -bfg    => GetWindowColor(),
   	);
 
   	my $infolabel = $interfacewindow->add(
@@ -88,7 +88,7 @@ sub InterfacePopup{
                         6 => 'Intercept IMAP/POP3 Passwords',
                         7 => 'Intercept SNMP Communities',
                         8 => 'Intercept HTTPS (Fake Certificates)',
-                        9 => 'Replace images with SITM Logo',
+                        9 => 'Replace pages with SITM Logo',
                         10 => 'SSL Striping Module',
                         11 => 'Rogue DNS Server',
                         12 => 'Rogue DHCP Server',

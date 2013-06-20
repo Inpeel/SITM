@@ -25,6 +25,12 @@ use Time::HiRes;
 use Getopt::Long;
 use Socket;
 use POSIX qw(strftime);
+
+my $bgcolor = "black";
+my $menucolor = "cyan";
+my $fgcolor = "white";
+my $windowcolor = "blue";
+
 my $release = "1.0B";
 my $license = "SITM version $release, Copyright (C) 2013 IN'TECH INFO
 SITM comes with ABSOLUTELY NO WARRANTY
@@ -33,10 +39,12 @@ You can distribute it, under certain conditions.\n
 See the file COPYING for details.";
 
 my $cui = new Curses::UI( -color_support => 1,
-                          -clear_on_exit => 0,
-                          -debug => 1, );
+                          -clear_on_exit => 1,
+                          -debug => 1,
+                          -bg => $bgcolor);
 
 require 'sys/ioctl.ph';
+require "Derma/passwords.pl";
 require "Derma/logging.pl";
 require "Derma/interface_selection.pl";
 require "Derma/target_selection.pl";
@@ -75,7 +83,7 @@ my @menu = (
     },
     {
         -label   => 'Logs',
-        -submenu => [ { -label => 'Passwords', -value => \&exit_dialog }, ]
+        -submenu => [ { -label => 'Passwords', -value => sub { ShowPassDerma(); } }, ]
     },
     {
         -label   => 'Security',
@@ -87,16 +95,25 @@ my @menu = (
 my $menu = $cui->add(
     'menu', 'Menubar',
     -menu => \@menu,
-    -fg   => "white",
-    -bg   => "red"
+    -fg   => $fgcolor,
+    -bg   => GetMenuColor(),
 );
 
 CreateLogDerma($cui);
+CreatePassDerma($cui);
 Init_Bindings($cui);
 
 $cui->set_timer('update_time', \&UpdateLog);
 
 $cui->mainloop();
+
+sub GetMenuColor {
+    return $menucolor;
+}
+
+sub GetWindowColor {
+    return $windowcolor;
+}
 
 sub UpdateLog {
     if (GetPipeStatus())
@@ -112,6 +129,21 @@ sub UpdateLog {
         #unlink "sitm_pipe.tmp";
         #$DataOnPipe = 0;
     }
+
+    if (GetPassPipeStatus())
+    {
+        foreach my $log (GetPasswords())
+        {
+            AddPassEntry($log);
+        }
+        GoToLastPass();
+        SetPassPipeStatus();
+        ClearPasswordPipe();
+        #unlink "sitm_pipe.tmp";
+        #$DataOnPipe = 0;
+    }
+
+
 }
 
 sub GetHosts{
@@ -133,11 +165,10 @@ sub exit_dialog {
         foreach my $thr (threads->list()) {
             $thr->exit('KILL') if $thr->can('exit'); 
         }
+        goto $cui::DESTROY;
         exit(0);
     }
 }
-
-
 sub DrawNotif {
     $cui->dialog($_[0]);
 }
@@ -170,5 +201,5 @@ sub Credits{
   \\  \\::/ /:/      \\__\\::/ \\__\\/  \\:\\   \\  \\:\\      
    \\__\\/ /:/       /__/:/       \\  \\:\\   \\  \\:\\     
      /__/:/        \\__\\/         \\__\\/    \\  \\:\\    
-     \\__\\/                                 \\__\\/    \n\n\nStalker In The Middle $release\n\nCreated by the students of IN'TECH INFO : \n\nBUNLON Christie\nCHATELAIN Nicolas\nHOFFMANN Brice\nINQUEL Alban\n\n$license");
+     \\__\\/                                 \\__\\/    \n\n\nStalker In The Middle $release\n\nCreated by the students of IN'TECH INFO : \n\nBUNLON Christie\nCHATELAIN Nicolas\nINQUEL Alban\n\n$license");
 }

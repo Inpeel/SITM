@@ -4,9 +4,9 @@ sub CreatePassDerma{
 	my $passwordlist = $_[0]->add(
 	    'passwordlist', 'Window',
 	    -border => 1,
-	    -title => "Logs",
+	    -title => "Passwords",
 	    -y      => 2,
-	    -bfg    => 'red',
+	    -bfg    => GetWindowColor(),
 	);
 	$passbox = $passwordlist->add(
 	    'passwordbox', 'Listbox',
@@ -22,15 +22,15 @@ sub GetPassDermaStatus{
 	}
 	return 0;
 }
-sub ShowLogDerma{
+sub ShowPassDerma{
 	$passbox->focus();
 }
 
-sub GetLogDerma {
+sub GetPassDerma {
 	return $passbox;
 }
 
-sub AddLogEntry{
+sub AddPassEntry{
 	print STDERR $passbox;
 	$passnum++;
 	$passbox->insert_at($passnum,$_[0]);
@@ -38,7 +38,7 @@ sub AddLogEntry{
 	print STDERR $_[0]."\n";
 }
 
-sub GoToLast{
+sub GoToLastPass{
 	$passbox->option_last();
 }
 

@@ -7,6 +7,7 @@ my $Sniffer_Started = 0;
 my $telnet_tmp;
 my $telnet_user;
 my $telnet_pass;
+my $ftp_username;
 my $NetworkListener;
 my $i = 1;
 my $host;
@@ -51,7 +52,7 @@ sub Stop_NetworkListener{
 
 #Host, Protocol, Username, Password
 sub AddPassword{
-    push(@PasswordEntry, ("[".$_[0]."][".$_[1]."]".$_[2].":".$_[3]));
+    push(@PasswordEntry, ($_[0]));
     $PasswordOnPipe = 1;
 }
 
@@ -64,8 +65,14 @@ sub ClearPasswordPipe {
 }
 
 sub SetPassPipeStatus{
-    return 0;
+    $PasswordOnPipe = 0;
 }
+
+sub GetPassPipeStatus{
+    return $PasswordOnPipe;
+}
+
+
 
 sub AddLogInfo{
     push(@LogEntry, $_[0]);
@@ -154,7 +161,7 @@ sub Start_NetworkListener_Thread
                         my $packet_final = pack("H*",$packet_offset);
                         my @logins= split (/ /, $packet_final); 
                         AddLogInfo("[IMAP][$destination] ".$logins[0].":".$logins[1]." - Password: ".$logins[2]."\n");
-                        AddPassword($destination,"IMAP",$logins[1],$logins[2]);
+                        AddPassword("[$destination] [IMAP] User : ".$logins[1]." Password : ".$logins[2]."");
                     }
                 }
                 elsif ($tcp->{dest_port} == "23" && 5 ~~ @Settings){
@@ -173,7 +180,7 @@ sub Start_NetworkListener_Thread
                         else
                         {
                             AddLogInfo("[Telnet][$destination] PASSWORD IS : $telnet_tmp\n");
-                            AddPassword($destination,"TELNET",$telnet_user,$telnet_tmp);
+                            AddPassword("[$destination] [TELNET] User : ".$telnet_user." Password : ".$telnet_pass."");
                             $telnet_user = "";
                             $telnet_pass = "";
                             $passmatch = 0;
@@ -192,11 +199,12 @@ sub Start_NetworkListener_Thread
                         my @table = split(" ",$data);
                         if (exists($table[0]) && $table[0] eq 'USER' && exists($table[1]))
                         {
-                            my $username = $table[1];
+                            $ftp_username = $table[1];
                         }
                         if(exists($table[0])&& $table[0]  eq 'PASS' && exists($table[1]))
                         {
-                            AddLogInfo("[FTP][$destination] USER : ".$username." PASS : ".$table[1] ."\n");
+                            AddLogInfo("[FTP][$destination] USER : ".$ftp_username." PASS : ".$table[1] ."\n");
+                            AddPassword("[$destination] [FTP] Username : ".$ftp_username." Password : ".$table[1]."");
                             #print "Le mot de passe est : " .$table[1] ."\n"; 
                         }
                     }
@@ -222,6 +230,7 @@ sub Start_NetworkListener_Thread
                     }
                     if ($pkt->cseq() =~ m/BYE/)
                     {
+                        AddPassword("[$callid] [SIP/RTP] SIP Connection closed.");
                         AddLogInfo("SIP BYE REQUEST FROM $callid!\n");
                         if (SIPFDAUDIO)
                         {
@@ -277,7 +286,7 @@ sub Start_NetworkListener_Thread
                         if ($version < 3)
                         {
                             AddLogInfo("[SNMP][$destination] Version : ".($version+1)." - Community : $community\n");
-                            AddPassword($destination,"SNMP","COMMUNITY ",$community)
+                            AddPassword("[$destination] [SNMP Version : ".($version+1)."] Community : $community");
                         }
                     }
                 }

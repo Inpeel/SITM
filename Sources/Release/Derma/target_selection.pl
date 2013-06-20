@@ -51,7 +51,7 @@ sub ShowTargets{
     	    -border => 1,
     	    -title => "Target List",
     	    -y      => 2,
-    	    -bfg    => 'red',
+    	    -bfg    => GetWindowColor(),
     	);
     	
 

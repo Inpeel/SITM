@@ -28,57 +28,57 @@ sub Start_HTTP_Striping_Server_Thread {
 	while (my $c = $http->accept) {
 		print "Requête d'un nouveau client..\n"; 
 
-	        while (my $request = $c->get_request) {
-	        	$request->uri("http://".$request->header("Host").$request->uri);
-				#my $tmp_http = $request;
-				#my $encoding_http;
-				#($tmp_http, $encoding_http) = decode_content($tmp_http);
-				#$tmp_http = replace_http($tmp_http);
-				#$tmp_http->encode($encoding_http);
-				#$request = $tmp_http;
-				#print "REQUETE TRANSFORME\n\n".$tmp_http->as_string."\n\n";
+        while (my $request = $c->get_request) {
+        	$request->uri("http://".$request->header("Host").$request->uri);
+			#my $tmp_http = $request;
+			#my $encoding_http;
+			#($tmp_http, $encoding_http) = decode_content($tmp_http);
+			#$tmp_http = replace_http($tmp_http);
+			#$tmp_http->encode($encoding_http);
+			#$request = $tmp_http;
+			#print "REQUETE TRANSFORME\n\n".$tmp_http->as_string."\n\n";
 
-				RESEND:
-				print "Envoi requete\n";
-				@{ $ua->requests_redirectable } = ();
-				my $response = $ua->request( $request );
-				if($response){
-					print "Réponse du serveur\n";
-				}
-				
-				CHECK_CODE:
-				print "LE STATUT DE LA REQUETE EST : ".$response->status_line."\n";
-				print "Code de la requete :".$response->code."\n";
-				
-				if($response->code == 301){
-					$response = redirect_301($request, $response);
-					print "DANS BOUCLE 301\n\n";
-					goto NEXT;
-				}elsif($response->code == 302){
-					$response = redirect_302($request, $response);
-					goto NEXT;
-				}else{
-					NEXT:
-					print "PASSE\n\n";
-					my $tmp = $response;
-					my $encoding;
-					my $send;
-					($tmp, $encoding) = decode_content($tmp);
-					$tmp = replace_https($tmp, $response);
-					$send = pack_response($tmp, $response, $encoding);
-
-					if($c->send_response($send)){
-						print "Réponse envoyée au client ac cookie\n";
-					}else{
-						print "\nRéponse non envoyé au client ac cookie\n";
-					} 
-				}
+			RESEND:
+			print "Envoi requete\n";
+			@{ $ua->requests_redirectable } = ();
+			my $response = $ua->request( $request );
+			if($response){
+				print "Réponse du serveur\n";
 			}
-			print "Fin d'envoi au client.\n\n";
-			$c->close;
-			undef($c);	
 			
-			print "En attente d'une requête\n";
+			CHECK_CODE:
+			print "LE STATUT DE LA REQUETE EST : ".$response->status_line."\n";
+			print "Code de la requete :".$response->code."\n";
+			
+			if($response->code == 301){
+				$response = redirect_301($request, $response);
+				print "DANS BOUCLE 301\n\n";
+				goto NEXT;
+			}elsif($response->code == 302){
+				$response = redirect_302($request, $response);
+				goto NEXT;
+			}else{
+				NEXT:
+				print "PASSE\n\n";
+				my $tmp = $response;
+				my $encoding;
+				my $send;
+				($tmp, $encoding) = decode_content($tmp);
+				$tmp = replace_https($tmp, $response);
+				$send = pack_response($tmp, $response, $encoding);
+
+				if($c->send_response($send)){
+					print "Réponse envoyée au client ac cookie\n";
+				}else{
+					print "\nRéponse non envoyé au client ac cookie\n";
+				} 
+			}
+		}
+		print "Fin d'envoi au client.\n\n";
+		$c->close;
+		undef($c);	
+		
+		print "En attente d'une requête\n";
 				
 	}
 

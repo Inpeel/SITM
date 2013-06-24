@@ -10,7 +10,6 @@ sub CreatePassDerma{
 	);
 	$passbox = $passwordlist->add(
 	    'passwordbox', 'Listbox',
-	    -values    => ["[".localtime."] - " . "SITM Started."],
 	);
 
 }

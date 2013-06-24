@@ -35,10 +35,10 @@ sub ShowMACDialog{
 
 sub ApplyMacAddress{
 	$mac = $_[0];
-	system("ifconfig wlan0 down");
+	system("ifconfig p5p1 down");
 	sleep(1);
-	system("ifconfig wlan0 hw ether $mac");
-	system("ifconfig wlan0 up");
+	system("ifconfig p5p1 hw ether $mac");
+	system("ifconfig p5p1 up");
 }
 
 return 1;

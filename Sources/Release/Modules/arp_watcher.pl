@@ -1,9 +1,15 @@
+my $status = 0;
+sub GetARPWatchStatus {
+	return $status;
+}
+
 sub CheckARPTable {
+	$status = 1;
 	AddLogEntry("SITM ARP Watcher started.");
 	defined($pid = fork) or die "Pas de fork possible : $!";
 	unless($pid) {
 		my $router_ip = "10.8.97.1";
-		my $original_router_mac = Net::ARP::arp_lookup("wlan0","10.8.97.1");
+		my $original_router_mac = Net::ARP::arp_lookup("p5p1","10.8.97.1");
 		my $noblock = 1;
 		$_[0]->status("SITM ARP Watcher is running /!\\");
 		Time::HiRes::sleep(0.5);
@@ -14,7 +20,7 @@ sub CheckARPTable {
 		$_[0]->nostatus;
 		do
 		{
-			$router_mac = Net::ARP::arp_lookup("wlan0",$router_ip);
+			$router_mac = Net::ARP::arp_lookup("p5p1",$router_ip);
 			if($original_router_mac ne $router_mac and $router_mac ne "unknown")
 			{
 				my $arpalertdialog = $_[0]->dialog(

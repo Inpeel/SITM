@@ -18,12 +18,22 @@ use Net::SIP::Packet;
 use IO::Socket;
 use IO::Select;
 use IO::Socket::SSL;
-use IO::Interface::Simple;
+use Net::DNS::Nameserver;
 use WWW::Mechanize::Firefox;
-use threads;
+use MIME::Base64;
+use URI::Escape;
+ use threads ('yield',
+'stack_size' => 64*4096,
+'exit' => 'threads_only',
+'stringify');
 use threads::shared;
 use Time::HiRes;
 use Getopt::Long;
+use Encode;
+use HTTP::Daemon;
+use LWP::UserAgent;
+use Crypt::SSLeay;
+use LWP::Protocol::https;
 use Socket;
 use POSIX qw(strftime);
 use Encode qw/decode/;
@@ -59,6 +69,8 @@ require "Modules/mac_generator.pl";
 require "Modules/arp_watcher.pl";
 require "Servers/dhcpd.pl";
 require "Servers/https.pl";
+require "Servers/dns.pl";
+require "Servers/http_striping.pl";
 require "Attacks/arp_query.pl";
 
 #Liste des themes
@@ -71,11 +83,30 @@ my $theme_menu = [
         { -label => 'SkyTheme', -value => sub { ChangeTheme("cyan"); } },
     ];
 
+#Liste des themes
+my $promisscan_menu = [
+        { -label => 'B31 Scan', -value => sub { if (GetSnifferStatus()) { PromisScannerComputeHosts($cui,"B31"); } else { DrawNotif("Sniffer must be started first"); } } },
+        { -label => 'B16 Scan', -value => sub { if (GetSnifferStatus()) { PromisScannerComputeHosts($cui,"B16"); } else { DrawNotif("Sniffer must be started first"); } } },
+        { -label => 'B8 Scan', -value => sub { if (GetSnifferStatus()) { PromisScannerComputeHosts($cui,"B8"); } else { DrawNotif("Sniffer must be started first"); } } },
+        { -label => 'Complete Scan', -value => sub { if (GetSnifferStatus()) { PromisScannerComputeHosts($cui,"COMPLETE"); } else { DrawNotif("Sniffer must be started first"); } } },,
+    ];
+
 #Elements du menu
 my @menu = (
     {
         -label   => 'SITM',
-        -submenu => [ { -label => 'Start Sniffing    ^S', -value => sub {InterfacePopup($cui);} }, { -label => 'Stop Sniffing', -value => sub {Stop_NetworkListener();} }, { -label => 'Show Logs         ^L', -value => sub {ShowLogDerma();} }, { -label => 'Credits           ^C', -value => sub {Credits();} },  { -label => 'Themes', -submenu => $theme_menu, },  { -label => 'Exit              ^Q', -value => \&exit_dialog } ]
+        -submenu => [ { -label => 'Start Sniffing    ^S', 
+            -value => sub {
+                if (GetSnifferStatus()) { 
+                    DrawNotif("Sniffer already started...");
+                }
+                else
+                {
+                    InterfacePopup($cui);
+                }
+                
+            } 
+        }, { -label => 'Stop Sniffing', -value => sub {Stop_NetworkListener(); ARPQuery_Attack_Stop();} }, { -label => 'Show Logs         ^L', -value => sub {ShowLogDerma();} }, { -label => 'Credits           ^C', -value => sub {Credits();} },  { -label => 'Themes', -submenu => $theme_menu, },  { -label => 'Exit              ^Q', -value => \&exit_dialog } ]
     },
     {
         -label   => 'Scans',
@@ -87,7 +118,7 @@ my @menu = (
                     } 
                     else 
                     { 
-                        DrawNotif("Sniffer must be started first !\n");
+                        DrawNotif("Sniffer must be started first.");
                     }
                 }
             },
@@ -98,7 +129,7 @@ my @menu = (
                     } 
                     else 
                     { 
-                        DrawNotif("Sniffer must be started first !\n");
+                        DrawNotif("Sniffer must be started first.");
                     }
                 }
             },
@@ -109,15 +140,85 @@ my @menu = (
                     } 
                     else 
                     { 
-                        DrawNotif("Sniffer must be started first !\n");
+                        DrawNotif("Sniffer must be started first.");
                     }
                 }
             },
-            { -label => 'Get Resolved Hosts', -value => sub{ ShowTargets($cui); } } ]
+             ]
     },
     {
         -label   => 'Attacks',
-        -submenu => [ { -label => 'ARP Spoofing Attack', -value => sub { ARPQuery_Attack_Start(); } }, ]
+        -submenu => [ 
+            { -label => 'Setup Attack', -value => sub{ ShowTargets($cui); } },  
+            { -label => 'ARP Spoofing Attack', 
+                -value => 
+                sub {
+                    if (GetSnifferStatus()) {  
+                        my %targets = GetAttackTargets();
+                        my @Settings = GetSettings();
+                        if (scalar(keys %targets) > 0)
+                        {
+                            if (3 ~~ @Settings)
+                            {
+                                 my $value = $cui->dialog(
+                                   -message => "WARNING ! NTLM USE TWO WAY ARP POISONING ! Attack may be logged. Continue ?",
+                                       -buttons => ['yes', 'no'],
+                                       -title   => 'SITM WARNING',
+                                );
+                                if ($value){
+                                    ARPQuery_Attack_Start();
+                                }
+                            }
+                           else
+                           {
+                            ARPQuery_Attack_Start();
+                           }
+                            
+                        }
+                        else
+                        {
+                            DrawNotif("No targets selected.")
+                        }
+                    }
+                    else
+                    {
+                        DrawNotif("Sniffer must be started first.");
+                    }
+                     
+                } 
+            }, 
+            { -label => 'Two-Way ARP Spoofing Attack', 
+                -value => 
+                sub {
+                    if (GetSnifferStatus()) {  
+                        my %targets = GetAttackTargets();
+                        my @Settings = GetSettings();
+                        if (scalar(keys %targets) > 0)
+                        {
+                                 my $value = $cui->dialog(
+                                   -message => "WARNING ! Using Two-Way ARP Poisoning is not very stealth. Continue ?",
+                                       -buttons => ['yes', 'no'],
+                                       -title   => 'SITM WARNING',
+                                );
+                                if ($value){
+                                    ARPQuery_Attack_Start(1);
+                                }
+                        }
+                        else
+                        {
+                            DrawNotif("No targets selected.")
+                        }
+                    }
+                    else
+                    {
+                        DrawNotif("Sniffer must be started first.");
+                    }
+                     
+                } 
+            }, 
+
+
+        ]
     },
     {
         -label   => 'Logs',
@@ -125,7 +226,11 @@ my @menu = (
     },
     {
         -label   => 'Security',
-        -submenu => [ { -label => 'Generate Random MAC    ^R', -value => sub { ShowMACGenerated($cui); } }, { -label => 'Set MAC Address        ^M', -value => sub { ShowMACDialog($cui); } }, { -label => 'MITM Protection Module', -value => sub { CheckARPTable($cui); } } ]
+        -submenu => [ { -label => 'Generate Random MAC    ^R', -value => sub { ShowMACGenerated($cui); } }, { -label => 'Set MAC Address        ^M', -value => sub { ShowMACDialog($cui); } }, { -label => 'DHCP Renew', -value => sub { RestartDHCP(); } }, { -label => 'MITM Protection Module', -value => sub { CheckARPTable($cui); } },
+
+        { -label => 'Promiscuous Scanner', -submenu => $promisscan_menu,
+            },
+             ]
     },
 );
 
@@ -176,6 +281,7 @@ sub UpdateLog {
             print STDERR $log;
             AddLogEntry($log);
         }
+
         GoToLast();
         SetPipeStatus();
         ClearPipe();
@@ -219,7 +325,6 @@ sub exit_dialog {
         foreach my $thr (threads->list()) {
             $thr->exit('KILL') if $thr->can('exit'); 
         }
-        goto $cui::DESTROY;
         exit(0);
     }
 }

@@ -6,12 +6,18 @@ sub ButtonCallback($;)
    my $this = shift;
    if ($this->get == 1)
    {
-   		Start_NetworkListener($selected_interface);
-      #GetSelectedInterfaceNetwork($selected_interface);
-
-   		GetLogDerma()->focus();
-      #print STDERR $settingsbox->get();
-   		DrawNotif("Sniffing demarré !");
+      my ($address, $netmask, $err);
+      Net::Pcap::lookupnet($selected_interface,\$address,\$netmask,\$err);
+      if ($err || $address == 0)
+      {
+        DrawNotif("Problème avec l'interface, non connectée au réseau.");
+      }
+      else
+      {
+     		Start_NetworkListener($selected_interface);
+     		GetLogDerma()->focus();
+     		DrawNotif("Sniffing demarré !");
+      }
    }
    else
    {
@@ -33,7 +39,7 @@ sub GetSelectedInterfaceNetwork{
   Net::Pcap::lookupnet($interface,\$address,\$netmask,\$err);
   my $ip = inet_ntoa( pack 'N', $address);
   my $mask = inet_ntoa( pack 'N', $netmask);
-  if ($err){ print STDERR $err."\n"; }
+  if ($err){ print STDERR "GetSelectedInterfaceNetwork : " .$err."\n"; }
   print STDERR "Returning...\n";
   my $block = new Net::Netmask($ip,$mask);
   return ($block->first(), $block->last(), $block->size());
@@ -41,6 +47,20 @@ sub GetSelectedInterfaceNetwork{
 
 sub InterfacePopup{
 	my @devs = pcap_findalldevs(\%devinfo, \$err);
+  my @valid_devices;
+  foreach my $device (@devs)
+  {
+    if ($device ne "lo")
+    {
+      my ($address, $netmask, $err);
+      Net::Pcap::lookupnet($device,\$address,\$netmask,\$err);
+      if (!$err && $address != 0)
+      {
+        push(@valid_devices,$device);
+      }
+    }
+  
+  }
 	$selected_interface = $devs[0];
   if (!$interfaceselection)
   {
@@ -69,7 +89,7 @@ sub InterfacePopup{
   	    'interfaceselection', 'Popupmenu',
   	    -x 		   => 12,
   	    -y		   => 3,
-  	    -values    => \@devs,
+  	    -values    => \@valid_devices,
   	    -onchange  => sub {
   	    	my $pm = shift;
   			my $lbl = $pm->parent->getobj('interfaceselection');
@@ -79,10 +99,10 @@ sub InterfacePopup{
 
     $settingsbox = $interfacewindow->add(
         'settingsbox', 'Listbox',
-        -values    => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        -values    => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
         -labels    => { 1 => 'Intercept HTTP POST Requests', 
                         2 => 'Intercept VoIP (SIP) Conversations', 
-                        3 => 'Intercept LM/NTML Hashes',
+                        3 => 'Intercept NTML Hashes',
                         4 => 'Intercept FTP Passwords',
                         5 => 'Intercept Telnet Passwords',
                         6 => 'Intercept IMAP/POP3 Passwords',
@@ -92,6 +112,7 @@ sub InterfacePopup{
                         10 => 'SSL Striping Module',
                         11 => 'Rogue DNS Server',
                         12 => 'Rogue DHCP Server',
+                        13 => 'Resolve host names',
                          },
         -multi      => 1,
         -vscrollbar => 1,

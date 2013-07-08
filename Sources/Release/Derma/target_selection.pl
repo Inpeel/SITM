@@ -1,7 +1,6 @@
 my $router;
 my %selectedtargets;
 my %hosts;
-my $targetlistbox;
 
 sub victimbox_callback()
 {
@@ -31,7 +30,7 @@ sub ShowVictimsCallback{
      print STDERR "ARP SPOOFING SIP=$k SMAC=$hosts{$k} USING IP : $router\n";
   }
   my $count = scalar(keys %selectedtargets);
-  DrawNotif("$count cibles en attentes !");
+  DrawNotif("$count cible(s) en attente !");
   ShowLogDerma();
 }
 
@@ -44,76 +43,99 @@ sub GetAttackRouter{
 }
 
 sub ShowTargets{
-	if (!$targetlistbox)
-  {
-    my $targetswindow = $_[0]->add(
-    	    'targetlist', 'Window',
-    	    -border => 1,
-    	    -title => "Target List",
-    	    -y      => 2,
-    	    -bfg    => GetWindowColor(),
-    	);
-    	
-
-  	%hosts = GetResolvedHosts();
-  	my @hostsref;
-    foreach my $k (keys(%hosts)) {
-      my $hostname = ResolveHostName($k);
-       push(@hostsref,"IP=$k MAC=$hosts{$k} HOST=$hostname\n");
-    }
-
-    my $victimlabel = $targetswindow->add(
-      'victimlabel', 'Label',
-      -text      => 'Select the victims : ',
-      -bold       => 1,
-      -y       => 1,
-    );
-
-    $targetlistbox = $targetswindow->add(
-      'targetbox', 'Listbox',
-      -values    => \@hostsref,
-      -y      => 3,
-      -vscrollbar => 1,
-      -height      => 5,
-      -multi  => 1,
-      -onchange   => \&victimbox_callback,
+  $_[0]->delete('targetlist');
+  $_[0]->delete('victimlabel');
+  $_[0]->delete('targetbox');
+  $_[0]->delete('routerlabel');
+  $_[0]->delete('routerbox');
+  $_[0]->delete('selectrouterbutton');
+  my @Settings = GetSettings();
+  my $targetswindow = $_[0]->add(
+  	    'targetlist', 'Window',
+  	    -border => 1,
+  	    -title => "Target List",
+  	    -y      => 2,
+  	    -bfg    => GetWindowColor(),
   	);
+  	
 
-    my $routerlabel = $targetswindow->add(
-      'routerlabel', 'Label',
-      -text      => 'Select the router : ',
-       -bold       => 1,
-      -y       => 9,
-    );
+	%hosts = GetResolvedHosts();
+  my $router = `route -n | grep ^0.0.0.0 | awk '{print \$2}'`;
+  $router =~ s/ //g;
+  $router =~ s/\n//g;
+  $router =~ s/\r//g;
+	my @hostsref;
+  foreach my $k (keys(%hosts)) {
+    my $hostname = "";
+    my $routerstr = "";
+     print STDERR "$k IS : $router\r\n";
+    if ($k eq $router)
+    {
 
-     my $routerlistbox = $targetswindow->add(
-      'routerbox', 'Listbox',
-      -values    => \@hostsref,
-      -y      => 11,
-      -vscrollbar => 1,
-      -height      => 5,
-      -onchange => \&routerbox_callback,
-    );
-
-    my $selectrouterbutton = $targetswindow->add(
-        'selectrouterbutton', 'Buttonbox',
-        -y       => 17,
-        
-        -buttons   => [
-            { 
-              -label => 'Valider',
-              -value => 1,
-              -onpress => \&ShowVictimsCallback, 
-              -shortcut => 1 
-            },{ 
-              -label => 'Annuler',
-              -value => 2,
-              -onpress => \&ButtonCallback, 
-              -shortcut => 2 
-            }
-        ]
-    );
+      $routerstr = "[DEFAULT GATEWAY]";
+    }
+    if (13 ~~ @Settings)
+    {
+      $hostname = ResolveHostName($k);
+    }
+    else
+    {
+      $hostname = "Unresolved";
+    }
+     push(@hostsref,"IP=$k MAC=$hosts{$k} HOST=$hostname $routerstr\n");
   }
+
+  my $victimlabel = $targetswindow->add(
+    'victimlabel', 'Label',
+    -text      => 'Select the victims : ',
+    -bold       => 1,
+    -y       => 1,
+  );
+
+  my $targetlistbox = $targetswindow->add(
+    'targetbox', 'Listbox',
+    -values    => \@hostsref,
+    -y      => 3,
+    -vscrollbar => 1,
+    -height      => 5,
+    -multi  => 1,
+    -onchange   => \&victimbox_callback,
+	);
+
+  my $routerlabel = $targetswindow->add(
+    'routerlabel', 'Label',
+    -text      => 'Select the router : ',
+     -bold       => 1,
+    -y       => 9,
+  );
+
+   my $routerlistbox = $targetswindow->add(
+    'routerbox', 'Listbox',
+    -values    => \@hostsref,
+    -y      => 11,
+    -vscrollbar => 1,
+    -height      => 5,
+    -onchange => \&routerbox_callback,
+  );
+
+  my $selectrouterbutton = $targetswindow->add(
+      'selectrouterbutton', 'Buttonbox',
+      -y       => 17,
+      
+      -buttons   => [
+          { 
+            -label => 'Valider',
+            -value => 1,
+            -onpress => \&ShowVictimsCallback, 
+            -shortcut => 1 
+          },{ 
+            -label => 'Annuler',
+            -value => 2,
+            -onpress => \&ButtonCallback, 
+            -shortcut => 2 
+          }
+      ]
+  );
   $targetlistbox->focus();
 }
 return 1;

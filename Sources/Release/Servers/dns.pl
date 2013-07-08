@@ -5,7 +5,7 @@ sub DNS_Reply_Callback {
     print "Received query from $peerhost to ". $conn->{sockhost}. "\n";
 
     if ($qtype eq "A") {
-        my ($ttl, $rdata) = (3600, "192.168.0.2");
+        my ($ttl, $rdata) = (3600, get_interface_address(GetSelectedInterface()));
         my $rr = new Net::DNS::RR("$qname $ttl $qclass $qtype $rdata");
         push @ans, $rr;
         $rcode = "NOERROR";
@@ -18,15 +18,19 @@ sub DNS_Reply_Callback {
     return ($rcode, \@ans, \@auth, \@add, { aa => 1 });
 }
 
-sub StartDNS_Server
+sub StartDNS_Server_Thread
 {
     my $ns = new Net::DNS::Nameserver(
-        LocalPort    => 53,
+        LocalPort    => 5456,
         ReplyHandler => \&DNS_Reply_Callback,
         Verbose      => 1
-    ) || die "couldn't create nameserver object\n";
-    print "SITM DNS Spoofing Module Started !\n";
-    $ns->main_loop;
+    ) or AddLogInfo("couldn't create nameserver object\n");
+    AddLogInfo("SITM DNS Spoofing Module Started on port 5456 !\n");
+    if ($ns)
+    {
+        $ns->main_loop;
+    }
+    
 }
 
 return 1;

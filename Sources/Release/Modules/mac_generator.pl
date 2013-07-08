@@ -34,11 +34,20 @@ sub ShowMACDialog{
 }
 
 sub ApplyMacAddress{
-	$mac = $_[0];
-	system("ifconfig p5p1 down");
+	my $mac = $_[0];
+	my $iface = GetSelectedInterface();
+	Stop_NetworkListener();
+	my $tmp = `ifconfig $iface down`;
 	sleep(1);
-	system("ifconfig p5p1 hw ether $mac");
-	system("ifconfig p5p1 up");
+	$tmp = `ifconfig $iface hw ether $mac`;
+	$tmp = `ifconfig $iface up`;
+	AddLogInfo("MAC Address changed ! Please restart sniffer.\n");
 }
 
+sub RestartDHCP{
+	my $iface = GetSelectedInterface();
+	my $dhcpcmd = `dhclient $iface -r`;
+	$dhcpcmd = `dhclient $iface`;
+	AddLogInfo("DHCP Renew done !\n");
+}
 return 1;
